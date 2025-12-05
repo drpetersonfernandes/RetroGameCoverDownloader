@@ -9,7 +9,7 @@ using Application = System.Windows.Application;
 
 namespace RetroGameCoverDownloader.ViewModels;
 
-public class MainViewModel : ViewModelBase
+public class MainViewModel : ViewModelBase, IDisposable
 {
     private readonly GitHubService _gitHubService;
     private CancellationTokenSource? _cts;
@@ -317,5 +317,11 @@ public class MainViewModel : ViewModelBase
     {
         _cts?.Cancel();
         Log("Cancellation requested...");
+    }
+
+    public void Dispose()
+    {
+        _cts?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
