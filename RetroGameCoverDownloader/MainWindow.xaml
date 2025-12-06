@@ -58,9 +58,18 @@
             <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100" Height="30" Margin="5"/>
         </StackPanel>
 
-        <!-- Progress Bar -->
-        <ProgressBar Grid.Row="3" Height="20" Margin="0,0,0,10" 
-                     Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"/>
+        <!-- Progress Bar Section -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,10">
+            <!-- TextBlock for the Status/Clock -->
+            <TextBlock Text="{Binding StatusMessage}" 
+                       HorizontalAlignment="Center" 
+                       FontWeight="Bold" 
+                       Foreground="#333333"
+                       Margin="0,0,0,5"/>
+            
+            <ProgressBar Height="20" 
+                         Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"/>
+        </StackPanel>
 
         <!-- Log Window -->
         <GroupBox Grid.Row="4" Header="Log">

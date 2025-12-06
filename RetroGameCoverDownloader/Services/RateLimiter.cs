@@ -7,11 +7,13 @@ public class RateLimiter
     private readonly Queue<DateTime> _requestTimestamps = new();
     private readonly object _lock = new();
 
+    // 1. Add an event to notify listeners (ViewModel)
+    public event Action<TimeSpan>? OnRateLimitHit;
+
     public RateLimiter(bool isAuthenticated)
     {
-        _maxRequests = isAuthenticated ? 4900 : 55; // Stay safely below the limit
+        _maxRequests = isAuthenticated ? 4900 : 55;
         _timeWindow = TimeSpan.FromHours(1);
-        Console.WriteLine($"Rate limiter configured for {_maxRequests} requests per hour.");
     }
 
     public async Task WaitForSlotAsync()
@@ -19,7 +21,6 @@ public class RateLimiter
         lock (_lock)
         {
             var now = DateTime.UtcNow;
-            // Clear out old timestamps
             while (_requestTimestamps.Count > 0 && (now - _requestTimestamps.Peek()) > _timeWindow)
             {
                 _requestTimestamps.Dequeue();
@@ -36,18 +37,21 @@ public class RateLimiter
             }
 
             var oldestRequest = _requestTimestamps.Peek();
-            timeToWait = _timeWindow - (DateTime.UtcNow - oldestRequest) + TimeSpan.FromSeconds(5); // Add a 5-second buffer
+            timeToWait = _timeWindow - (DateTime.UtcNow - oldestRequest) + TimeSpan.FromSeconds(5);
         }
 
         if (timeToWait > TimeSpan.Zero)
         {
+            // 2. Trigger the event before waiting
+            OnRateLimitHit?.Invoke(timeToWait);
+
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Rate limit reached. Waiting for {timeToWait.TotalSeconds:F0} seconds to avoid API errors...");
+            Console.WriteLine($"Rate limit reached. Waiting {timeToWait.TotalSeconds:F0}s...");
             Console.ResetColor();
+
             await Task.Delay(timeToWait);
         }
 
-        // After waiting, add the new request timestamp
         lock (_lock)
         {
             _requestTimestamps.Enqueue(DateTime.UtcNow);

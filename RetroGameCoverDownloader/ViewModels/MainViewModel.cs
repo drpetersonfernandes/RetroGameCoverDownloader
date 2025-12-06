@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using System.Windows.Threading;
 using RetroGameCoverDownloader.Commands;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Models;
@@ -13,6 +14,8 @@ public class MainViewModel : ViewModelBase, IDisposable
 {
     private readonly GitHubService _gitHubService;
     private CancellationTokenSource? _cts;
+    private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
+    private TimeSpan _remainingWaitTime;
 
     // Data
     public ObservableCollection<SystemConfig> Systems { get; } = new();
@@ -24,6 +27,13 @@ public class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand PrepareCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public RelayCommand CancelCommand { get; }
+
+    // 1. Add a property for the UI message
+    public string StatusMessage
+    {
+        get;
+        set => SetField(ref field, value);
+    } = "Ready";
 
     public MainViewModel()
     {
@@ -38,6 +48,16 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         _gitHubService = new GitHubService(settings.GitHubToken);
+
+        // 2. Subscribe to the Rate Limit event
+        _gitHubService.RateLimitHit += OnRateLimitHit;
+
+        // 3. Initialize the timer
+        _countdownTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _countdownTimer.Tick += OnTimerTick;
 
         // Init Commands
         BrowseRomCommand = new RelayCommand(_ => SelectFolder(path => { RomFolderPath = path; }));
@@ -68,6 +88,35 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         // Load Systems on Startup
         LoadSystemsAsync();
+    }
+
+    // 5. Handle the timer tick
+    private void OnTimerTick(object? sender, EventArgs e)
+    {
+        _remainingWaitTime = _remainingWaitTime.Subtract(TimeSpan.FromSeconds(1));
+
+        if (_remainingWaitTime <= TimeSpan.Zero)
+        {
+            _countdownTimer.Stop();
+            StatusMessage = "Resuming downloads...";
+        }
+        else
+        {
+            StatusMessage = $"Rate limit reached. Resuming in {_remainingWaitTime.TotalSeconds:F0} seconds...";
+        }
+    }
+
+    // 4. Handle the event from RateLimiter
+    private void OnRateLimitHit(TimeSpan waitTime)
+    {
+        _remainingWaitTime = waitTime;
+
+        // Ensure we update UI on the UI thread
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            StatusMessage = $"Rate limit reached. Resuming in {_remainingWaitTime.TotalSeconds:F0} seconds...";
+            _countdownTimer.Start();
+        });
     }
 
     // Properties
@@ -121,6 +170,11 @@ public class MainViewModel : ViewModelBase, IDisposable
     private void Log(string message)
     {
         LogText += $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+        // Optional: Update the status message for normal logs too, if not waiting
+        if (!_countdownTimer.IsEnabled)
+        {
+            StatusMessage = message;
+        }
     }
 
     private async void LoadSystemsAsync()

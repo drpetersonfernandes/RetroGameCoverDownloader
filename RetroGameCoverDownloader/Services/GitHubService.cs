@@ -16,6 +16,13 @@ public class GitHubService : IDisposable
     private const string MainRepoBranch = "master";
     private static readonly char[] Separator = new[] { '\r', '\n' };
 
+    // 1. Expose the event wrapper
+    public event Action<TimeSpan>? RateLimitHit
+    {
+        add => _rateLimiter.OnRateLimitHit += value;
+        remove => _rateLimiter.OnRateLimitHit -= value;
+    }
+
     public GitHubService(string? token)
     {
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
