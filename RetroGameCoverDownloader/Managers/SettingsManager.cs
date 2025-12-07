@@ -2,6 +2,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using RetroGameCoverDownloader.Models;
+using RetroGameCoverDownloader.Services;
 
 namespace RetroGameCoverDownloader.Managers;
 
@@ -15,6 +16,8 @@ public static class SettingsManager
         {
             return new AppSettings();
         }
+
+        const string context = "[SettingsManager.LoadSettings] ";
 
         try
         {
@@ -31,13 +34,15 @@ public static class SettingsManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Warning: Could not read settings file. A new one will be created. Error: {ex.Message}");
+            Console.WriteLine($"{context}Warning: Could not read settings file. A new one will be created. Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to deserialize settings.xml. Creating new settings.");
             return new AppSettings();
         }
     }
 
     public static void SaveSettings(AppSettings settings)
     {
+        const string context = "[SettingsManager.SaveSettings] ";
         try
         {
             var serializer = new XmlSerializer(typeof(AppSettings));
@@ -46,7 +51,8 @@ public static class SettingsManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: Could not save settings to {SettingsFilePath}. Error: {ex.Message}");
+            Console.WriteLine($"{context}Error: Could not save settings to {SettingsFilePath}. Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {SettingsFilePath}.");
         }
     }
 }

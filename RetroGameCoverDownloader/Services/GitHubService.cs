@@ -26,8 +26,16 @@ public class GitHubService : IDisposable
     public GitHubService(string? token)
     {
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverScannerWpf", "1.0"));
+        try
+        {
+            _httpClient = new HttpClient();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to initialize HttpClient in GitHubService.", ex);
+        }
+
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverDownloader", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
         if (!string.IsNullOrWhiteSpace(token))
@@ -39,6 +47,8 @@ public class GitHubService : IDisposable
     public async Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction)
     {
         var systems = new List<SystemConfig>();
+        const string context = "[GetAvailableSystemsAsync] ";
+
         try
         {
             logAction("Fetching .gitmodules...");
@@ -68,7 +78,9 @@ public class GitHubService : IDisposable
         }
         catch (Exception ex)
         {
-            logAction($"Error fetching systems: {ex.Message}");
+            var errorMsg = $"{context}Error fetching systems: {ex.Message}";
+            logAction(errorMsg);
+            await BugReportService.LogErrorAsync(ex, $"{context}Failed to fetch available systems from GitHub.");
         }
 
         return systems;
@@ -77,6 +89,8 @@ public class GitHubService : IDisposable
     public async Task<List<GitHubTreeItem>> GetSystemFilesAsync(SystemConfig system, Action<string> logAction)
     {
         var branches = new[] { "main", "master" };
+        var context = $"[GetSystemFilesAsync] System: {system.SystemName} ";
+
         foreach (var branch in branches)
         {
             try
@@ -96,11 +110,14 @@ public class GitHubService : IDisposable
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
+                logAction($"{context}Branch '{branch}' not found, trying next...");
                 continue; // Try next branch
             }
             catch (Exception ex)
             {
-                logAction($"Error fetching files for {system.SystemName}: {ex.Message}");
+                var errorMsg = $"{context}Error fetching files: {ex.Message}";
+                logAction(errorMsg);
+                await BugReportService.LogErrorAsync(ex, $"{context}Exception while fetching system files.");
                 break;
             }
         }
@@ -110,19 +127,32 @@ public class GitHubService : IDisposable
 
     public async Task<byte[]?> DownloadFileAsync(string url)
     {
+        const string context = "[DownloadFileAsync] ";
+
         try
         {
             await _rateLimiter.WaitForSlotAsync();
-            return await _httpClient.GetByteArrayAsync(url);
+            var data = await _httpClient.GetByteArrayAsync(url);
+
+            if (data == null || data.Length == 0)
+            {
+                throw new InvalidOperationException($"Downloaded data is null or empty from URL: {url}");
+            }
+
+            return data;
         }
-        catch
+        catch (Exception ex)
         {
+            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to download file from URL: {url}");
+
             return null;
         }
     }
 
     private Dictionary<string, string> ParseGitmodules(string content)
     {
+        const string context = "[ParseGitmodules] ";
+
         var map = new Dictionary<string, string>();
         var lines = content.Split(Separator, StringSplitOptions.RemoveEmptyEntries);
         string? currentPath = null;
@@ -130,21 +160,41 @@ public class GitHubService : IDisposable
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            if (trimmed.StartsWith("path =", StringComparison.Ordinal))
-            {
-                currentPath = trimmed.Split('=', 2)[1].Trim();
-            }
-            else if (trimmed.StartsWith("url =", StringComparison.Ordinal) && currentPath != null)
-            {
-                var url = trimmed.Split('=', 2)[1].Trim();
-                var repo = url.Split('/').LastOrDefault()?.Replace(".git", "");
-                if (!string.IsNullOrEmpty(repo))
-                {
-                    map[currentPath] = repo;
-                }
 
-                currentPath = null;
+            try
+            {
+                if (trimmed.StartsWith("path =", StringComparison.Ordinal))
+                {
+                    currentPath = trimmed.Split('=', 2)[1].Trim();
+                }
+                else if (trimmed.StartsWith("url =", StringComparison.Ordinal) && currentPath != null)
+                {
+                    var url = trimmed.Split('=', 2)[1].Trim();
+                    var repo = url.Split('/').LastOrDefault()?.Replace(".git", "");
+                    if (!string.IsNullOrEmpty(repo))
+                    {
+                        map[currentPath] = repo;
+                    }
+
+                    currentPath = null;
+                }
             }
+            catch (Exception ex)
+            {
+                // Log parsing errors but continue processing other lines
+                var errorMsg = $"{context}Error parsing line '{trimmed}': {ex.Message}";
+                Console.WriteLine(errorMsg);
+                _ = BugReportService.LogErrorAsync(ex, $"{context}Exception parsing gitmodules line: {trimmed}");
+                currentPath = null; // Reset to avoid corrupting next entry
+            }
+        }
+
+        // Validate we found some systems
+        if (map.Count == 0)
+        {
+            var ex = new InvalidOperationException("No systems were parsed from .gitmodules content.");
+            _ = BugReportService.LogErrorAsync(ex, $"{context}ParseGitmodules returned empty result.");
+            throw ex;
         }
 
         return map;

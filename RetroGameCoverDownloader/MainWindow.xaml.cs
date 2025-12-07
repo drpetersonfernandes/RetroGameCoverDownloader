@@ -1,7 +1,9 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using RetroGameCoverDownloader.Managers;
+using RetroGameCoverDownloader.Services;
 using RetroGameCoverDownloader.Views;
+using MessageBox = System.Windows.MessageBox;
 using TextBox = System.Windows.Controls.TextBox;
 
 namespace RetroGameCoverDownloader;
@@ -16,22 +18,38 @@ public partial class MainWindow
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Check for Token on startup
-        var settings = SettingsManager.LoadSettings();
-        if (string.IsNullOrWhiteSpace(settings.GitHubToken))
+        try
         {
-            var dialog = new TokenDialog();
-            if (dialog.ShowDialog() == true)
-            {
-                settings.GitHubToken = dialog.Token;
-                SettingsManager.SaveSettings(settings);
+            // Check for Token on startup
+            var settings = SettingsManager.LoadSettings();
 
-                // Refresh ViewModel with new token if needed,
-                // or simply restart app logic.
-                // For simplicity, the VM loads settings in constructor,
-                // so we might need to reload the VM or pass the token.
-                // Ideally, do this check in App.xaml.cs before showing MainWindow.
+            if (string.IsNullOrWhiteSpace(settings.GitHubToken))
+            {
+                var dialog = new TokenDialog();
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        settings.GitHubToken = dialog.Token;
+                        SettingsManager.SaveSettings(settings);
+
+                        // Log successful token save (without exposing token)
+                        var viewModel = DataContext as ViewModels.MainViewModel;
+                        viewModel?.Log("[OnLoaded] GitHub token saved successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to save token. The application may have limited functionality.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        _ = BugReportService.LogErrorAsync(ex, "[OnLoaded] Failed to save token after dialog.");
+                    }
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            // Show user-friendly error but don't crash
+            MessageBox.Show("An error occurred during startup. Some features may not work correctly.", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _ = BugReportService.LogErrorAsync(ex, "[OnLoaded] Exception during token check on window load.");
         }
     }
 
