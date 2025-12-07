@@ -1,0 +1,131 @@
+# 🎮 Retro Game Cover Downloader
+
+[![C#](https://img.shields.io/badge/C%23-.NET%2010.0-blue.svg)](https://dotnet.microsoft.com/)
+[![WPF](https://img.shields.io/badge/WPF-Desktop%20App-blue.svg)](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
+[![GitHub](https://img.shields.io/badge/GitHub-API%20Integration-lightgrey.svg)](https://docs.github.com/en/rest)
+
+A sleek, modern WPF application that automatically downloads missing cover art for your retro game ROM collection from the official [libretro-thumbnails](https://github.com/libretro-thumbnails) GitHub repositories.
+
+## 📖 Overview
+
+Tired of manually hunting for game cover art? **Retro Game Cover Downloader** scans your ROM folders, identifies missing covers, and fetches them directly from libretro's extensive thumbnail database. With built-in rate limit handling, progress tracking, and error reporting, managing your retro gaming library has never been easier!
+
+## ✨ Features
+
+🎮 **Multi-System Support** - Automatically detects available gaming systems from libretro's repositories  
+📁 **Smart Folder Scanning** - Scans your ROMs and existing covers to find what's missing  
+⬇️ **Batch Downloading** - Downloads all missing covers in one click with progress tracking  
+⚡ **Rate Limit Management** - Intelligent handling of GitHub API limits with visual countdown timer  
+🔐 **Token Integration** - Optional GitHub token support for 4,900 downloads/hour (vs 55 without)  
+🔄 **Update Checker** - Automatically notifies you of new versions  
+🐛 **Error Reporting** - Automatic bug reports to help improve the application  
+⏹️ **Cancellation Support** - Cancel operations anytime  
+📊 **Progress UI** - Real-time progress bar and status messages  
+🖥️ **CLI Support** - Command-line arguments for automation
+
+## 🖼️ Screenshots
+
+![Screenshot](screenshot1.png)
+![Screenshot](screenshot2.png)
+
+## 📦 Installation
+
+### Prerequisites
+- Windows 10 or later
+- .NET 10.0 Runtime (installed automatically with the application)
+
+### Download
+1. Grab the latest release from the [Releases Page](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/releases)
+2. Extract the ZIP file to your desired location
+3. Run `RetroGameCoverDownloader.exe`
+
+### Build from Source
+```bash
+git clone https://github.com/drpetersonfernandes/CSharp_RetroGameCoverDownloader.git
+cd CSharp_RetroGameCoverDownloader
+dotnet build -c Release
+```
+
+## 🔧 Configuration
+
+### GitHub Token (Recommended)
+To unlock the full 4,900 downloads/hour limit:
+
+1. Click **File → Exit** (or wait for the token prompt on first launch)
+2. Click the "GitHub Token Setup" button
+3. Follow the in-app instructions or:
+    - Visit [GitHub Token Settings](https://github.com/settings/tokens/new)
+    - Generate a token with **`public_repo`** scope
+    - Copy and paste it into the application
+
+> **💡 Tip**: Without a token, you're limited to ~50 covers/hour. With a token, you can download thousands!
+
+## 🚀 Usage
+
+### GUI Mode
+1. **Set ROM Folder**: Browse to your ROM collection directory
+2. **Set Cover Folder**: Choose where to save cover images
+3. **Select System**: Pick your gaming system (NES, SNES, Genesis, etc.)
+4. **Prepare**: Scan and identify missing covers
+5. **Download**: Fetch all missing covers automatically
+
+### Command-Line Mode
+```bash
+# Basic usage
+RetroGameCoverDownloader.exe "C:\Covers\SNES" "C:\ROMs\SNES"
+
+# With flags
+RetroGameCoverDownloader.exe --cover "C:\Covers" --rom "C:\ROMs"
+
+# Positional arguments (Cover folder first, then ROM folder)
+RetroGameCoverDownloader.exe "C:\Covers" "C:\ROMs"
+```
+
+## 🛠️ Technical Details
+
+### Architecture
+- **MVVM Pattern**: Clean separation of concerns with ViewModels
+- **Async/Await**: Fully asynchronous operations for UI responsiveness
+- **Rate Limiting**: Custom `RateLimiter` service with event notifications
+- **Error Handling**: Comprehensive logging and bug reporting
+
+### Key Components
+- `MainViewModel`: Core business logic and state management
+- `GitHubService`: Handles all GitHub API interactions
+- `BugReportService`: Automatic error reporting to developer
+- `SettingsManager`: XML-based settings persistence
+- `RateLimiter`: Intelligent API request throttling
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/AmazingFeature`)
+3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** to the branch (`git push origin feature/AmazingFeature`)
+5. **Open** a Pull Request
+
+## 📄 License
+
+This project is licensed under the **GPL-3.0 license**.
+
+## 🆘 Support
+
+- **Issues**: [Report Bugs](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/issues)
+- **Discussions**: [Ask Questions](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/discussions)
+- **Email**: support@purelogiccode.com
+
+## ⭐ Show Your Support
+
+If you find this project helpful, please consider giving it a **star** on GitHub! It helps others discover the project and motivates continued development.
+
+[![GitHub Stars](https://img.shields.io/github/stars/drpetersonfernandes/RetroGameCoverDownloader?style=social)](https://github.com/drpetersonfernandes/RetroGameCoverDownloader)
+
+**⭐ Click the star button at the top of the repository if you like this project! ⭐**
+
+---
+
+<div align="center">
+Made with ❤️ by <a href="https://www.purelogiccode.com">Pure Logic Code</a>
+</div>

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using RetroGameCoverDownloader.Services;
+using RetroGameCoverDownloader.ViewModels;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader;
@@ -14,9 +15,67 @@ public partial class App
     {
         base.OnStartup(e);
         DispatcherUnhandledException += App_DispatcherUnhandledException;
+
+        // Parse command-line arguments
+        // Usage:
+        //   RetroGameCoverDownloader.exe "C:\ROMs" "C:\Covers"
+        //   RetroGameCoverDownloader.exe --rom "C:\ROMs" --cover "C:\Covers"
+        //   RetroGameCoverDownloader.exe /rom "C:\ROMs" /cover "C:\Covers"
+        string? romPath = null;
+        string? coverPath = null;
+
+        var args = e.Args;
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+
+            // Support both / and -- prefixes
+            if (arg.Equals("/rom", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("--rom", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    romPath = args[++i];
+                }
+            }
+            else if (arg.Equals("/cover", StringComparison.OrdinalIgnoreCase) ||
+                     arg.Equals("--cover", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Length)
+                {
+                    coverPath = args[++i];
+                }
+            }
+        }
+
+        // Fallback to positional arguments if no flags provided
+        if (romPath == null && coverPath == null && args.Length >= 2)
+        {
+            coverPath = args[0];
+            romPath = args[1];
+        }
+
+        // Create and show the main window
+        var mainWindow = new MainWindow();
+
+        // Set paths in ViewModel if provided
+        if (mainWindow.DataContext is MainViewModel viewModel)
+        {
+            if (!string.IsNullOrWhiteSpace(romPath))
+            {
+                viewModel.RomFolderPath = romPath;
+            }
+
+            if (!string.IsNullOrWhiteSpace(coverPath))
+            {
+                viewModel.CoverFolderPath = coverPath;
+            }
+        }
+
+        mainWindow.Show();
     }
 
-    private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    private static void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         try
         {
