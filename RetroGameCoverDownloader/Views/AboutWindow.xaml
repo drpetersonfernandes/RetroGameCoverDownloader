@@ -14,7 +14,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="10" HorizontalAlignment="Center" Orientation="Horizontal">
-            <Image Width="128" Height="128" Source="pack://application:,,,/icon/icon.ico" />
+            <Image Width="128" Height="128" Source="pack://application:,,,/images/logo.png" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="20">
