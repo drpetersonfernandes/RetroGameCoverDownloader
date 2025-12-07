@@ -1,7 +1,7 @@
 <Window x:Class="RetroGameCoverDownloader.Views.TokenDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="GitHub Token Setup" Height="380" Width="500" 
+        Title="GitHub Token Setup" Height="480" Width="620" 
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
