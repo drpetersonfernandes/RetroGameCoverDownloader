@@ -88,6 +88,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         // Load Systems on Startup
         LoadSystemsAsync();
+
+        // Check for updates
+        _ = UpdateCheckerService.CheckForUpdateAsync();
     }
 
     // 5. Handle the timer tick
@@ -197,6 +200,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             Log($"[LoadSystemsAsync] Error: {ex.Message}].");
+            _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems.");
         }
     }
 
@@ -297,6 +301,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             Log($"Error during preparation: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] An error occurred during the preparation task.");
         }
         finally
         {
@@ -356,6 +361,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             Log($"Error during download batch: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] An error occurred during the download batch task.");
         }
         finally
         {
