@@ -571,6 +571,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _cts?.Dispose();
+        _gitHubService?.Dispose();
         GC.SuppressFinalize(this);
     }
 }

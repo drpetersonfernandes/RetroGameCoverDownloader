@@ -3,8 +3,6 @@ using System.Windows.Threading;
 using RetroGameCoverDownloader.Services;
 using MessageBox = System.Windows.MessageBox;
 
-// Added for DateTime
-
 namespace RetroGameCoverDownloader;
 
 /// <summary>

@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Services;
@@ -57,5 +57,25 @@ public partial class MainWindow
     private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         ((TextBox)sender).ScrollToEnd();
+    }
+
+    private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            new AboutWindow { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            // FIX: Call Log on the ViewModel, not on MainWindow
+            var viewModel = DataContext as ViewModels.MainViewModel;
+            viewModel?.Log($"Error opening About window: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Error opening About window");
+        }
     }
 }
