@@ -113,7 +113,10 @@ public class MainViewModel : ViewModelBase, IDisposable
                 _ = BugReportService.LogErrorAsync(ex, "[DownloadCommand] Unhandled exception in DownloadCommand execution.");
             }
         }, _ => !IsBusy && _itemsToDownload.Count > 0);
-        CancelCommand = new RelayCommand(_ => CancelOperation(), _ => IsBusy);
+        CancelCommand = new RelayCommand(
+            _ => CancelOperation(),
+            _ => IsBusy && _cts != null // Add null check to disable button sooner
+        );
 
         // Load Systems on Startup
         LoadSystemsAsync();
@@ -540,23 +543,48 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 Log($"Download finished. Successfully saved {successCount} covers.");
                 IsBusy = false;
-                _cts.Dispose();
-                _cts = null;
-                _itemsToDownload.Clear(); // Reset list
             }
             catch (Exception ex)
             {
                 Log($"[DownloadCoversAsync] Error in finally block: {ex.Message}");
                 _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] Exception in finally block while cleaning up.");
             }
+            finally
+            {
+                // Dispose and null out in a nested finally to ensure it always happens
+                _cts?.Dispose();
+                _cts = null;
+            }
         }
     }
 
     private void CancelOperation()
     {
-        _cts?.Cancel();
-        Log("Cancellation requested...");
+        // Check if there's an active token source
+        if (_cts == null)
+        {
+            Log("No active operation to cancel.");
+            return;
+        }
 
+        try
+        {
+            // Attempt to cancel, handling the case where it's already disposed
+            _cts.Cancel();
+            Log("Cancellation requested...");
+        }
+        catch (ObjectDisposedException)
+        {
+            // Operation already completed and disposed the token source
+            Log("Cancellation requested but operation already completed.");
+        }
+        catch (Exception ex)
+        {
+            Log($"[CancelOperation] Error cancelling operation: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[CancelOperation] Exception while cancelling operation.");
+        }
+
+        // Always dispose and null out the reference
         try
         {
             _cts?.Dispose();
@@ -565,6 +593,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[CancelOperation] Error disposing cancellation token: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[CancelOperation] Exception while disposing cancellation token source.");
+        }
+        finally
+        {
+            _cts = null; // Critical: prevent future calls on disposed object
         }
     }
 
