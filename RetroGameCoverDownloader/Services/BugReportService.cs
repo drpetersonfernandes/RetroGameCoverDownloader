@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
@@ -87,15 +87,15 @@ public static class BugReportService
             WriteToCriticalLog(writeEx, $"Failed to write main error to '{ErrorLogFilePath}'. Original error: {ex.Message}");
         }
 
-        // Fire-and-forget the async API call from the synchronous method
-        _ = SendLogToApiAsync(logContent).ContinueWith(static task =>
+        // Synchronously wait for the API call to ensure it completes before process termination
+        try
         {
-            if (task is { IsFaulted: true, Exception: not null })
-            {
-                WriteToCriticalLog(task.Exception.Flatten().InnerExceptions.FirstOrDefault() ?? task.Exception,
-                    "Exception in fire-and-forget SendLogToApiAsync from LogErrorSync.");
-            }
-        }, TaskScheduler.Default);
+            SendLogToApiAsync(logContent).GetAwaiter().GetResult();
+        }
+        catch (Exception apiEx)
+        {
+            WriteToCriticalLog(apiEx, "Exception in synchronous SendLogToApiAsync from LogErrorSync.");
+        }
     }
 
 

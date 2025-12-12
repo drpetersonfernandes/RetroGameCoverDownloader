@@ -38,9 +38,25 @@ public class GitHubService : IDisposable
         _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverDownloader", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
+        UpdateAuthorizationHeader(token);
+    }
+
+    public void UpdateCredentials(string? token)
+    {
+        var isAuthenticated = !string.IsNullOrWhiteSpace(token);
+        _rateLimiter.UpdateLimit(isAuthenticated);
+        UpdateAuthorizationHeader(token);
+    }
+
+    private void UpdateAuthorizationHeader(string? token)
+    {
         if (!string.IsNullOrWhiteSpace(token))
         {
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", token);
+        }
+        else
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = null;
         }
     }
 
@@ -86,7 +102,7 @@ public class GitHubService : IDisposable
         return systems;
     }
 
-    public async Task<List<GitHubTreeItem>> GetSystemFilesAsync(SystemConfig system, Action<string> logAction)
+    public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction)
     {
         var branches = new[] { "main", "master" };
         var context = $"[GetSystemFilesAsync] System: {system.SystemName} ";
@@ -103,9 +119,16 @@ public class GitHubService : IDisposable
                 if (tree != null)
                 {
                     // Filter for files in the specific folder (Named_Boxarts)
-                    return tree.Tree
+                    var files = tree.Tree
                         .Where(i => i.Type == "blob" && i.Path.StartsWith(system.FolderPath + "/", StringComparison.OrdinalIgnoreCase))
                         .ToList();
+
+                    // Only return if we actually found files in this branch.
+                    // Otherwise, the folder might not exist in 'main' but might in 'master'.
+                    if (files.Count > 0)
+                    {
+                        return (branch, files);
+                    }
                 }
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
@@ -122,7 +145,7 @@ public class GitHubService : IDisposable
             }
         }
 
-        return new List<GitHubTreeItem>();
+        return (string.Empty, new List<GitHubTreeItem>());
     }
 
     public async Task<byte[]?> DownloadFileAsync(string url)

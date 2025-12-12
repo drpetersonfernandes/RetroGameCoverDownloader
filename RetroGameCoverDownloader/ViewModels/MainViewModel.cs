@@ -12,7 +12,7 @@ namespace RetroGameCoverDownloader.ViewModels;
 
 public class MainViewModel : ViewModelBase, IDisposable
 {
-    private readonly GitHubService _gitHubService;
+    private GitHubService _gitHubService;
     private CancellationTokenSource? _cts;
     private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
     private TimeSpan _remainingWaitTime;
@@ -148,6 +148,28 @@ public class MainViewModel : ViewModelBase, IDisposable
         else
         {
             StatusMessage = $"Rate limit reached. Resuming in {_remainingWaitTime.TotalSeconds:F0} seconds...";
+        }
+    }
+
+    // Method to update token at runtime without restart
+    public void UpdateToken(string token)
+    {
+        try
+        {
+            // Cleanup old service
+            _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.Dispose();
+
+            // Init new service
+            _gitHubService = new GitHubService(token);
+            _gitHubService.RateLimitHit += OnRateLimitHit;
+
+            Log("[MainViewModel] GitHub token updated. Rate limits increased.");
+        }
+        catch (Exception ex)
+        {
+            Log($"[UpdateToken] Error updating service: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update token at runtime.");
         }
     }
 
@@ -325,13 +347,13 @@ public class MainViewModel : ViewModelBase, IDisposable
                 // 1. Scan ROMs
                 Log($"Scanning ROM folder: {RomFolderPath}");
                 var romFiles = Directory.GetFiles(RomFolderPath);
-                var romNames = romFiles.Select(f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var romNames = romFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Log($"Found {romNames.Count} ROMs.");
 
                 // 2. Scan Covers
                 Log($"Scanning Cover folder: {CoverFolderPath}");
                 var coverFiles = Directory.GetFiles(CoverFolderPath);
-                var coverNames = coverFiles.Select(f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Log($"Found {coverNames.Count} existing covers.");
 
                 // Validate folders exist
@@ -354,16 +376,15 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 // 4. Fetch GitHub List
                 Log($"Fetching file list from GitHub for {SelectedSystem.SystemName}...");
-                var githubFiles = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log);
+                var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log);
 
-                if (githubFiles == null)
+                if (githubFiles == null || githubFiles.Count == 0)
                 {
-                    Log($"[PrepareDownloadAsync] GetSystemFilesAsync returned null for {SelectedSystem.SystemName}.");
-                    throw new InvalidOperationException($"Failed to retrieve file list for {SelectedSystem.SystemName}.");
+                    Log($"[PrepareDownloadAsync] No files found for {SelectedSystem.SystemName}.");
+                    return;
                 }
 
-                Log($"Found {githubFiles.Count} files in repository.");
-
+                Log($"Found {githubFiles.Count} files in repository (Branch: {branch}).");
 
                 // 5. Match Missing vs GitHub
                 // GitHub paths are like "Named_Boxarts/Game Name.png"
@@ -377,33 +398,14 @@ public class MainViewModel : ViewModelBase, IDisposable
                     if (match != null)
                     {
                         var fileName = Path.GetFileName(match.Path);
-                        // Construct raw URL. Note: We need to know the branch.
-                        // Simplified: assuming 'master' or 'main' based on what GetSystemFilesAsync found,
-                        // but for raw download we construct it dynamically.
-                        // Ideally GetSystemFilesAsync should return full URL or branch info.
-                        // Here we reconstruct based on standard pattern:
-                        var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/master/{Uri.EscapeDataString(match.Path)}";
-                        // Note: If repo uses 'main', this might fail 404.
-                        // Improvement: Update GitHubService to return full download URL in the TreeItem or separate model.
-                        // For this example, we will try to detect branch in Service or just try both.
-                        // Let's assume 'master' for now, or handle 404 in download.
-
-                        // Actually, let's fix the URL construction.
-                        // Since we don't know the branch here easily without passing it back,
-                        // let's assume the service handles the URL or we try both.
-                        // A better approach: The Service should return objects with the valid Raw Url.
-
-                        // HACK for this example: We will try 'master', if 404, 'main' is handled in download logic?
-                        // No, let's just use the URL construction logic from the original Program.cs
-                        // In Program.cs, it detected the branch.
-
-                        // Let's assume 'master' for libretro-thumbnails usually.
+                        // Construct raw URL using the detected branch.
+                        var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/{branch}/{Uri.EscapeDataString(match.Path)}";
 
                         _itemsToDownload.Add(new CoverDownloadItem
                         {
                             GameName = missing,
                             TargetFilename = fileName,
-                            DownloadUrl = url // This needs to be accurate.
+                            DownloadUrl = url
                         });
                     }
                 }
@@ -484,14 +486,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 Log($"Downloading: {item.GameName}...");
 
-                // Try downloading (handling branch 'master' vs 'main' issue simply by trying)
                 var data = await _gitHubService.DownloadFileAsync(item.DownloadUrl);
-                if (data == null)
-                {
-                    // Fallback to 'main' if 'master' failed
-                    var altUrl = item.DownloadUrl.Replace("/master/", "/main/");
-                    data = await _gitHubService.DownloadFileAsync(altUrl);
-                }
 
                 if (data != null)
                 {
@@ -569,13 +564,14 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            // Attempt to cancel, handling the case where it's already disposed
-            _cts.Cancel();
-            Log("Cancellation requested...");
+            if (!_cts.IsCancellationRequested)
+            {
+                _cts.Cancel();
+                Log("Cancellation requested...");
+            }
         }
         catch (ObjectDisposedException)
         {
-            // Operation already completed and disposed the token source
             Log("Cancellation requested but operation already completed.");
         }
         catch (Exception ex)
@@ -584,20 +580,9 @@ public class MainViewModel : ViewModelBase, IDisposable
             _ = BugReportService.LogErrorAsync(ex, "[CancelOperation] Exception while cancelling operation.");
         }
 
-        // Always dispose and null out the reference
-        try
-        {
-            _cts?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Log($"[CancelOperation] Error disposing cancellation token: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[CancelOperation] Exception while disposing cancellation token source.");
-        }
-        finally
-        {
-            _cts = null; // Critical: prevent future calls on disposed object
-        }
+        // Note: We do NOT dispose or null _cts here.
+        // The worker task (DownloadCoversAsync) owns the lifecycle and will dispose/null it
+        // in its finally block. Doing it here causes race conditions.
     }
 
     public void Dispose()

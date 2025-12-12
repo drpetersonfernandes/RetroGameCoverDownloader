@@ -2,7 +2,7 @@ namespace RetroGameCoverDownloader.Services;
 
 public class RateLimiter
 {
-    private readonly int _maxRequests;
+    private int _maxRequests;
     private readonly TimeSpan _timeWindow;
     private readonly Queue<DateTime> _requestTimestamps = new();
     private readonly object _lock = new();
@@ -12,8 +12,16 @@ public class RateLimiter
 
     public RateLimiter(bool isAuthenticated)
     {
-        _maxRequests = isAuthenticated ? 4900 : 55;
+        UpdateLimit(isAuthenticated);
         _timeWindow = TimeSpan.FromHours(1);
+    }
+
+    public void UpdateLimit(bool isAuthenticated)
+    {
+        lock (_lock)
+        {
+            _maxRequests = isAuthenticated ? 4900 : 55;
+        }
     }
 
     public async Task WaitForSlotAsync()

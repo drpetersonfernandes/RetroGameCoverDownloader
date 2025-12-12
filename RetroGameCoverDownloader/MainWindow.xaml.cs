@@ -33,8 +33,9 @@ public partial class MainWindow
                         settings.GitHubToken = dialog.Token;
                         SettingsManager.SaveSettings(settings);
 
-                        // Log successful token save (without exposing token)
+                        // Log successful token save (without exposing token) and update the running service
                         var viewModel = DataContext as ViewModels.MainViewModel;
+                        viewModel?.UpdateToken(dialog.Token);
                         viewModel?.Log("[OnLoaded] GitHub token saved successfully.");
                     }
                     catch (Exception ex)
