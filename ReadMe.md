@@ -39,13 +39,6 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 2. Extract the ZIP file to your desired location
 3. Run `RetroGameCoverDownloader.exe`
 
-### Build from Source
-```bash
-git clone https://github.com/drpetersonfernandes/CSharp_RetroGameCoverDownloader.git
-cd CSharp_RetroGameCoverDownloader
-dotnet build -c Release
-```
-
 ## 🔧 Configuration
 
 ### GitHub Token (Recommended)
@@ -95,16 +88,6 @@ RetroGameCoverDownloader.exe "C:\Covers" "C:\ROMs"
 - `BugReportService`: Automatic error reporting to developer
 - `SettingsManager`: XML-based settings persistence
 - `RateLimiter`: Intelligent API request throttling
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/AmazingFeature`)
-3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** to the branch (`git push origin feature/AmazingFeature`)
-5. **Open** a Pull Request
 
 ## 📄 License
 
