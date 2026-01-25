@@ -46,7 +46,7 @@ public partial class AboutWindow
         e.Handled = true;
     }
 
-    private string GetApplicationVersion()
+    private static string GetApplicationVersion()
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         return version?.ToString() ?? "Unknown";

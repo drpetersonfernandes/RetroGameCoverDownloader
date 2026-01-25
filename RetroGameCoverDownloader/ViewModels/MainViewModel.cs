@@ -277,7 +277,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     try
                     {
                         Systems.Clear();
-                        foreach (var sys in systems.OrderBy(s => s.SystemName)) Systems.Add(sys);
+                        foreach (var sys in systems.OrderBy(static s => s.SystemName)) Systems.Add(sys);
                     }
                     catch (Exception ex)
                     {
@@ -378,7 +378,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 Log($"Fetching file list from GitHub for {SelectedSystem.SystemName}...");
                 var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log);
 
-                if (githubFiles == null || githubFiles.Count == 0)
+                if (githubFiles.Count == 0)
                 {
                     Log($"[PrepareDownloadAsync] No files found for {SelectedSystem.SystemName}.");
                     return;
@@ -416,7 +416,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             Log("Preparation cancelled.");
-            _ = BugReportService.LogErrorAsync(new Exception("Preparation cancelled by user."), "[PrepareDownloadAsync] Operation was cancelled.");
+            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Preparation cancelled by user."), "[PrepareDownloadAsync] Operation was cancelled.");
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -588,7 +588,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _cts?.Dispose();
-        _gitHubService?.Dispose();
+        _gitHubService.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -2,7 +2,10 @@ namespace RetroGameCoverDownloader.Models;
 
 public class GitHubTreeItem
 {
-    public string Path { get; set; } = "";
-    public string Type { get; set; } = "";
-    public string Mode { get; set; } = "";
+    public string Path { get; init; } = "";
+    public string Type { get; init; } = "";
+
+    public string Mode { get; init; } = "";
+
+    public static string Sha => "";
 }

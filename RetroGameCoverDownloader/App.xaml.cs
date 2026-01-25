@@ -6,6 +6,7 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader;
 
+/// <inheritdoc />
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>

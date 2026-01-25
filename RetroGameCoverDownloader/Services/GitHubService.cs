@@ -14,7 +14,7 @@ public class GitHubService : IDisposable
     private const string MainRepoOwner = "libretro-thumbnails";
     private const string MainRepoName = "libretro-thumbnails";
     private const string MainRepoBranch = "master";
-    private static readonly char[] Separator = new[] { '\r', '\n' };
+    private static readonly char[] Separator = ['\r', '\n'];
 
     // 1. Expose the event wrapper
     public event Action<TimeSpan>? RateLimitHit
@@ -38,13 +38,6 @@ public class GitHubService : IDisposable
         _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverDownloader", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
-        UpdateAuthorizationHeader(token);
-    }
-
-    public void UpdateCredentials(string? token)
-    {
-        var isAuthenticated = !string.IsNullOrWhiteSpace(token);
-        _rateLimiter.UpdateLimit(isAuthenticated);
         UpdateAuthorizationHeader(token);
     }
 
@@ -83,7 +76,7 @@ public class GitHubService : IDisposable
 
             if (tree?.Tree != null)
             {
-                foreach (var item in tree.Tree.Where(i => i.Type == "commit"))
+                foreach (var item in tree.Tree.Where(static i => i.Type == "commit"))
                 {
                     if (repoNameMap.TryGetValue(item.Path, out var systemRepoName))
                     {
@@ -111,30 +104,34 @@ public class GitHubService : IDisposable
         {
             try
             {
+                // Step 1: Try the recursive approach (efficient for small/medium repos)
                 var apiUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}?recursive=1";
                 await _rateLimiter.WaitForSlotAsync();
-                var json = await _httpClient.GetStringAsync(apiUrl);
+
+                var response = await _httpClient.GetAsync(apiUrl);
+
+                switch (response.StatusCode)
+                {
+                    // Handle the 500 error specifically for large repos (like PS2)
+                    case HttpStatusCode.InternalServerError:
+                        logAction($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
+                        return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction);
+                    case HttpStatusCode.NotFound:
+                        continue; // Try next branch
+                }
+
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync();
                 var tree = JsonSerializer.Deserialize<GitHubTree>(json, _jsonOptions);
 
-                if (tree != null)
+                if (tree?.Tree != null)
                 {
-                    // Filter for files in the specific folder (Named_Boxarts)
                     var files = tree.Tree
                         .Where(i => i.Type == "blob" && i.Path.StartsWith(system.FolderPath + "/", StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
-                    // Only return if we actually found files in this branch.
-                    // Otherwise, the folder might not exist in 'main' but might in 'master'.
-                    if (files.Count > 0)
-                    {
-                        return (branch, files);
-                    }
+                    if (files.Count > 0) return (branch, files);
                 }
-            }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                logAction($"{context}Branch '{branch}' not found, trying next...");
-                continue; // Try next branch
             }
             catch (Exception ex)
             {
@@ -147,6 +144,56 @@ public class GitHubService : IDisposable
 
         return (string.Empty, new List<GitHubTreeItem>());
     }
+
+    /// <summary>
+    /// Fallback for large repositories where recursive calls fail with 500 errors.
+    /// Fetches the root, finds the target folder SHA, and fetches that folder's tree specifically.
+    /// </summary>
+    private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, Action<string> logAction)
+    {
+        try
+        {
+            // 1. Get root tree (non-recursive)
+            var rootUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}";
+            await _rateLimiter.WaitForSlotAsync();
+            var rootJson = await _httpClient.GetStringAsync(rootUrl);
+            var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
+
+            // 2. Find the "Named_Boxarts" folder entry
+            var folderEntry = rootTree?.Tree.FirstOrDefault(i =>
+                i.Type == "tree" && string.Equals(i.Path, system.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+            if (folderEntry != null && !string.IsNullOrEmpty(GitHubTreeItem.Sha))
+            {
+                // 3. Fetch the tree for that specific folder (non-recursive is usually enough)
+                // We use the SHA of the folder to get its contents directly
+                var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{GitHubTreeItem.Sha}";
+                await _rateLimiter.WaitForSlotAsync();
+                var folderJson = await _httpClient.GetStringAsync(folderUrl);
+                var folderTree = JsonSerializer.Deserialize<GitHubTree>(folderJson, _jsonOptions);
+
+                if (folderTree?.Tree != null)
+                {
+                    // Map paths to include the folder prefix so the rest of the app logic remains compatible
+                    var files = folderTree.Tree
+                        .Where(static i => i.Type == "blob")
+                        .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type, Mode = i.Mode })
+                        .ToList();
+
+                    logAction($"Successfully retrieved {files.Count} files via fallback method.");
+                    return (branch, files);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logAction($"Fallback failed: {ex.Message}");
+            await BugReportService.LogErrorAsync(ex, "GetSystemFilesLargeRepoFallbackAsync failed.");
+        }
+
+        return (string.Empty, new List<GitHubTreeItem>());
+    }
+
 
     public async Task<byte[]?> DownloadFileAsync(string url)
     {
@@ -172,7 +219,7 @@ public class GitHubService : IDisposable
         }
     }
 
-    private Dictionary<string, string> ParseGitmodules(string content)
+    private static Dictionary<string, string> ParseGitmodules(string content)
     {
         const string context = "[ParseGitmodules] ";
 
@@ -225,7 +272,7 @@ public class GitHubService : IDisposable
 
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        _httpClient.Dispose();
         GC.SuppressFinalize(this);
     }
 }
