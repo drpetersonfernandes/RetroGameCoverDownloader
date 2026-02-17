@@ -10,7 +10,7 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.Services;
 
-public static class UpdateCheckerService
+public static partial class UpdateCheckerService
 {
     private const string RepoOwner = "drpetersonfernandes";
     private const string RepoName = "CSharp_RetroGameCoverDownloader";
@@ -40,7 +40,7 @@ public static class UpdateCheckerService
             if (tagName is null || htmlUrl is null) return;
 
             // We expect tags like "v1.0.2" or "release_1.0.2" – pick the 1.0.2 part.
-            var m = Regex.Match(tagName, @"\d+\.\d+\.\d+");
+            var m = MyRegex().Match(tagName);
             if (!m.Success) return;
 
             var latest = Version.Parse(m.Value);
@@ -83,4 +83,7 @@ public static class UpdateCheckerService
             BugReportService.LogErrorSync(ex, "UpdateCheckerService.CheckForUpdateAsync");
         }
     }
+
+    [GeneratedRegex(@"\d+\.\d+\.\d+")]
+    private static partial Regex MyRegex();
 }

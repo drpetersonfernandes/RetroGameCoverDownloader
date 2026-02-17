@@ -16,6 +16,10 @@ public class GitHubService : IDisposable
     private const string MainRepoBranch = "master";
     private static readonly char[] Separator = ['\r', '\n'];
 
+    // Circuit breaker state (thread-safe counters for 503 tracking)
+    private int _consecutive503Count;
+    private DateTime _circuitBreakerOpenUntil = DateTime.MinValue;
+
     // 1. Expose the event wrapper
     public event Action<TimeSpan>? RateLimitHit
     {
@@ -28,7 +32,7 @@ public class GitHubService : IDisposable
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
         try
         {
-            _httpClient = new HttpClient();
+            _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         }
         catch (Exception ex)
         {
@@ -195,28 +199,87 @@ public class GitHubService : IDisposable
     }
 
 
-    public async Task<byte[]?> DownloadFileAsync(string url)
+    public async Task<byte[]?> DownloadFileAsync(string url, Action<string>? logAction = null, CancellationToken cancellationToken = default)
     {
         const string context = "[DownloadFileAsync] ";
+        const int maxRetries = 3;
 
-        try
+        // Feature 1: Circuit Breaker - Check if we need to pause before attempting
+        await WaitForCircuitBreakerAsync(logAction, cancellationToken);
+
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
-            await _rateLimiter.WaitForSlotAsync();
-            var data = await _httpClient.GetByteArrayAsync(url);
-
-            if (data == null || data.Length == 0)
+            try
             {
-                throw new InvalidOperationException($"Downloaded data is null or empty from URL: {url}");
+                await _rateLimiter.WaitForSlotAsync(cancellationToken);
+
+                // Feature 2: User Feedback - Show current attempt
+                logAction?.Invoke($"Downloading attempt {attempt}...");
+
+                var data = await _httpClient.GetByteArrayAsync(url, cancellationToken);
+
+                if (data == null || data.Length == 0)
+                {
+                    throw new InvalidOperationException($"Downloaded data is null or empty from URL: {url}");
+                }
+
+                // Success: Reset consecutive error count (closed circuit)
+                Interlocked.Exchange(ref _consecutive503Count, 0);
+                return data;
             }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable && attempt < maxRetries)
+            {
+                // Feature 1: Circuit Breaker Pattern - Track 503s
+                var currentCount = Interlocked.Increment(ref _consecutive503Count);
 
-            return data;
+                if (currentCount >= 5)
+                {
+                    _circuitBreakerOpenUntil = DateTime.UtcNow.AddSeconds(30);
+                    logAction?.Invoke("⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
+                    Interlocked.Exchange(ref _consecutive503Count, 0); // Reset for next cycle
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                }
+                else
+                {
+                    // Exponential backoff: 3s, 6s, 12s...
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+
+                    // Feature 2: User Feedback - Show retry status with 503 count
+                    logAction?.Invoke($"Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
+                    await Task.Delay(delay, cancellationToken);
+                }
+            }
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException && attempt < maxRetries)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+
+                // Feature 2: User Feedback - Show timeout retry
+                logAction?.Invoke($"Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Log final failure after all retries exhausted or non-transient error
+                await BugReportService.LogErrorAsync(ex, $"{context}Failed after {attempt} attempts: {url}");
+                return null;
+            }
         }
-        catch (Exception ex)
+
+        return null;
+    }
+
+    // Feature 1: Circuit Breaker helper - Enforces the 30s pause when threshold reached
+    private Task WaitForCircuitBreakerAsync(Action<string>? logAction, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        if (now < _circuitBreakerOpenUntil)
         {
-            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to download file from URL: {url}");
-
-            return null;
+            var waitTime = _circuitBreakerOpenUntil - now;
+            logAction?.Invoke($"[Circuit Breaker] Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
+            return Task.Delay(waitTime, cancellationToken);
         }
+
+        return Task.CompletedTask;
     }
 
     private static Dictionary<string, string> ParseGitmodules(string content)

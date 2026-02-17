@@ -24,7 +24,7 @@ public class RateLimiter
         }
     }
 
-    public async Task WaitForSlotAsync()
+    public async Task WaitForSlotAsync(CancellationToken cancellationToken = default)
     {
         const string context = "[RateLimiter.WaitForSlotAsync] ";
 
@@ -67,7 +67,7 @@ public class RateLimiter
             Console.WriteLine($"Rate limit reached. Waiting {timeToWait.TotalSeconds:F0}s...");
             Console.ResetColor();
 
-            await Task.Delay(timeToWait);
+            await Task.Delay(timeToWait, cancellationToken);
         }
 
         lock (_lock)

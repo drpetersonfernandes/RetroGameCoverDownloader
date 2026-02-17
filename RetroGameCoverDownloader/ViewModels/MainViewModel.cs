@@ -486,7 +486,8 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 Log($"Downloading: {item.GameName}...");
 
-                var data = await _gitHubService.DownloadFileAsync(item.DownloadUrl);
+                // Feature 2: Pass log callback to show "Retrying..." messages in UI automatically
+                var data = await _gitHubService.DownloadFileAsync(item.DownloadUrl, Log, token);
 
                 if (data != null)
                 {
