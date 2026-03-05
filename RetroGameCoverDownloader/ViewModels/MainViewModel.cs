@@ -57,7 +57,14 @@ public class MainViewModel : ViewModelBase, IDisposable
             // For simplicity, we assume the View handles the initial prompt or we just init service without token.
         }
 
-        _gitHubService = new GitHubService(settings.GitHubToken);
+        // Initialize GitHubService with proxy settings
+        _gitHubService = new GitHubService(
+            settings.GitHubToken,
+            settings.UseProxy,
+            settings.ProxyHost,
+            settings.ProxyPort,
+            settings.ProxyUsername,
+            settings.ProxyPassword);
 
         try
         {
@@ -170,6 +177,38 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[UpdateToken] Error updating service: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update token at runtime.");
+        }
+    }
+
+    // Method to update proxy settings and recreate the GitHubService
+    public void UpdateProxySettings(bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
+    {
+        try
+        {
+            // Cleanup old service
+            _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.Dispose();
+
+            // Get current token from settings
+            var settings = SettingsManager.LoadSettings();
+
+            // Init new service with proxy settings
+            _gitHubService = new GitHubService(
+                settings.GitHubToken,
+                useProxy,
+                proxyHost,
+                proxyPort,
+                proxyUsername,
+                proxyPassword);
+            _gitHubService.RateLimitHit += OnRateLimitHit;
+
+            var proxyStatus = useProxy ? $"enabled (http://{proxyHost}:{proxyPort})" : "disabled";
+            Log($"[MainViewModel] Proxy settings updated. Proxy: {proxyStatus}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[UpdateProxySettings] Error updating service: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update proxy settings at runtime.");
         }
     }
 

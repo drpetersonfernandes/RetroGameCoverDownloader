@@ -27,12 +27,34 @@ public class GitHubService : IDisposable
         remove => _rateLimiter.OnRateLimitHit -= value;
     }
 
-    public GitHubService(string? token)
+    public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null)
     {
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
+
+        var handler = new HttpClientHandler();
+
+        // Configure proxy if enabled
+        if (useProxy && !string.IsNullOrWhiteSpace(proxyHost) && proxyPort > 0)
+        {
+            var proxy = new WebProxy
+            {
+                Address = new Uri($"http://{proxyHost}:{proxyPort}"),
+                BypassProxyOnLocal = false
+            };
+
+            // Add credentials if provided
+            if (!string.IsNullOrWhiteSpace(proxyUsername))
+            {
+                proxy.Credentials = new NetworkCredential(proxyUsername, proxyPassword);
+            }
+
+            handler.Proxy = proxy;
+            handler.UseProxy = true;
+        }
+
         try
         {
-            _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
         }
         catch (Exception ex)
         {

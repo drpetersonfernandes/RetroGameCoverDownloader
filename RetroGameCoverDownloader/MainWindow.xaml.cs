@@ -65,6 +65,56 @@ public partial class MainWindow
         Close();
     }
 
+    private void ProxySettingsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new ProxySettingsDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    // Load current settings
+                    var settings = SettingsManager.LoadSettings();
+
+                    // Update proxy settings
+                    settings.UseProxy = dialog.UseProxy;
+                    settings.ProxyHost = dialog.ProxyHost;
+                    settings.ProxyPort = dialog.ProxyPort;
+                    settings.ProxyUsername = dialog.ProxyUsername;
+                    settings.ProxyPassword = dialog.ProxyPassword;
+
+                    SettingsManager.SaveSettings(settings);
+
+                    // Update the running service with new proxy settings
+                    var viewModel = DataContext as ViewModels.MainViewModel;
+                    viewModel?.UpdateProxySettings(
+                        dialog.UseProxy,
+                        dialog.ProxyHost,
+                        dialog.ProxyPort,
+                        dialog.ProxyUsername,
+                        dialog.ProxyPassword);
+
+                    var proxyStatus = dialog.UseProxy ? $"enabled (http://{dialog.ProxyHost}:{dialog.ProxyPort})" : "disabled";
+                    MessageBox.Show($"Proxy settings saved. Proxy: {proxyStatus}\n\nNote: You may need to restart the application for settings to fully take effect.",
+                        "Proxy Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Failed to save proxy settings. Please try again.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsMenuItem_Click] Failed to save proxy settings.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("An error occurred while opening proxy settings.", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsMenuItem_Click] Exception opening proxy settings dialog.");
+        }
+    }
+
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
     {
         try

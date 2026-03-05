@@ -21,6 +21,12 @@
         <!-- Menu Bar -->
         <Menu Grid.Row="0">
             <MenuItem Header="_File">
+                <MenuItem Header="_Proxy Settings" Click="ProxySettingsMenuItem_Click">
+                    <MenuItem.Icon>
+                        <Image Source="pack://application:,,,/images/folder.png" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
                 <MenuItem Header="_Exit" Click="ExitMenuItem_Click">
                     <MenuItem.Icon>
                         <Image Source="pack://application:,,,/images/exit.png" Width="16" Height="16"/>
