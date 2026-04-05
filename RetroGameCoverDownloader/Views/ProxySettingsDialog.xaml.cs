@@ -56,13 +56,23 @@ public partial class ProxySettingsDialog
                 {
                     MessageBox.Show("Please enter a proxy host address.", "Validation Error",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ProxyHostBox.Focus();
                     return;
                 }
 
-                if (!int.TryParse(ProxyPortBox.Text.Trim(), out var port) || port <= 0 || port > 65535)
+                if (string.IsNullOrWhiteSpace(ProxyPortBox.Text))
+                {
+                    MessageBox.Show("Please enter a proxy port.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ProxyPortBox.Focus();
+                    return;
+                }
+
+                if (!int.TryParse(ProxyPortBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var port) || port <= 0 || port > 65535)
                 {
                     MessageBox.Show("Please enter a valid proxy port (1-65535).", "Validation Error",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ProxyPortBox.Focus();
                     return;
                 }
             }
@@ -70,7 +80,7 @@ public partial class ProxySettingsDialog
             // Set properties
             UseProxy = UseProxyCheckBox.IsChecked == true;
             ProxyHost = UseProxy ? ProxyHostBox.Text.Trim() : null;
-            ProxyPort = UseProxy && int.TryParse(ProxyPortBox.Text.Trim(), out var p) ? p : 0;
+            ProxyPort = UseProxy && int.TryParse(ProxyPortBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
             ProxyUsername = UseProxy && !string.IsNullOrWhiteSpace(ProxyUsernameBox.Text)
                 ? ProxyUsernameBox.Text.Trim()
                 : null;

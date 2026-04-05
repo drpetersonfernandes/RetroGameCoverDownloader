@@ -2,15 +2,19 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="GitHub Token Setup" Height="480" Width="620" 
-        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        ToolTip="Configure a GitHub Personal Access Token for higher rate limits">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" ToolTip="Scroll to see all token setup instructions">
         <StackPanel Margin="20">
             <!-- Title -->
-            <TextBlock Text="GitHub Personal Access Token" FontSize="16" FontWeight="Bold" Margin="0,0,0,15"/>
+            <TextBlock Text="GitHub Personal Access Token" Style="{StaticResource TitleTextStyle}"
+                       ToolTip="Set up authentication for higher GitHub API usage limits"/>
             
             <!-- Key Benefits/Limitations -->
-            <TextBlock Text="Why do I need this?" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10">
+            <TextBlock Text="Why do I need this?" Style="{StaticResource SectionHeadingStyle}"
+                       ToolTip="Understanding the benefits of using a token"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                       ToolTip="Comparison of rate limits with and without a token">
                 <Run Text="Without a token: " FontWeight="Bold"/>
                 <Run Text="55 downloads/hour limit (~50 games)"/>
                 <LineBreak/>
@@ -19,14 +23,20 @@
             </TextBlock>
             
             <!-- What is it -->
-            <TextBlock Text="What is it?" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock Text="A secure authentication key that GitHub uses to identify you and grant higher usage limits. It's free and easy to create." 
-                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+            <TextBlock Text="What is it?" Style="{StaticResource SectionHeadingStyle}"
+                       ToolTip="Explanation of what a Personal Access Token is"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                       ToolTip="A token lets GitHub identify you for higher API limits">
+                A secure authentication key that GitHub uses to identify you and grant higher usage limits. It's free and easy to create.
+            </TextBlock>
             
             <!-- How to get one -->
-            <TextBlock Text="How to get one (free):" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock Margin="0,0,0,10">
-                <Hyperlink NavigateUri="https://github.com/settings/tokens/new" RequestNavigate="Hyperlink_RequestNavigate">
+            <TextBlock Text="How to get one (free):" Style="{StaticResource SectionHeadingStyle}"
+                       ToolTip="Step-by-step guide to creating a token"/>
+            <TextBlock Margin="0,0,0,10"
+                       ToolTip="Follow these steps to create your GitHub token">
+                <Hyperlink NavigateUri="https://github.com/settings/tokens/new" RequestNavigate="Hyperlink_RequestNavigate"
+                           ToolTip="Opens the GitHub token creation page in your browser">
                     1. Click here to create a token
                 </Hyperlink>
                 <LineBreak/>
@@ -38,17 +48,22 @@
             </TextBlock>
             
             <!-- Token Input -->
-            <TextBlock Text="Token (optional):" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBox x:Name="TokenBox" Height="30" Margin="0,0,0,20"/>
+            <TextBlock Text="Token (optional):" Style="{StaticResource FieldLabelStyle}"
+                       ToolTip="Paste your GitHub Personal Access Token here"/>
+            <TextBox x:Name="TokenBox" Height="30" Margin="0,0,0,20"
+                     ToolTip="Paste your GitHub token here, or leave empty to proceed with limited rate (55 requests/hour)"/>
             
             <!-- Note -->
             <TextBlock Text="Leave empty to proceed without a token, but expect slower downloads." 
-                       Foreground="Gray" FontStyle="Italic" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                       Style="{StaticResource NoteTextStyle}"/>
             
             <!-- Buttons -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancel" Click="CancelButton_Click" Width="80" Height="30" Margin="0,0,10,0"/>
-                <Button Content="Save &amp; Continue" Click="SaveButton_Click" Width="120" Height="30" IsDefault="True"/>
+                <Button Content="Cancel" Click="CancelButton_Click" Style="{StaticResource DialogButtonStyle}"
+                        ToolTip="Close without saving a token (will use limited anonymous rate)"/>
+                <Button Content="Save &amp; Continue" Click="SaveButton_Click" Style="{StaticResource DialogButtonStyle}"
+                        Width="120" IsDefault="True" Margin="0"
+                        ToolTip="Save the token and continue to the application"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

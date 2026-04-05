@@ -5,5 +5,107 @@
              >
     <Application.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+
+        <!-- ==================== Color Resources ==================== -->
+        <SolidColorBrush x:Key="StatusTextColor" Color="#333333"/>
+        <SolidColorBrush x:Key="NoteTextColor" Color="#808080"/>
+        <SolidColorBrush x:Key="MenuItemIconForeground" Color="#333333"/>
+
+        <!-- ==================== Text Styles ==================== -->
+
+        <!-- Title text: dialog/section headings -->
+        <Style x:Key="TitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <!-- Section heading text -->
+        <Style x:Key="SectionHeadingStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <!-- Status text: bold label used for status/clock display -->
+        <Style x:Key="StatusTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource StatusTextColor}"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <!-- Note/help text: gray italic informational text -->
+        <Style x:Key="NoteTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource NoteTextColor}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <!-- Log text: monospace text for log display -->
+        <Style x:Key="LogTextStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+        </Style>
+
+        <!-- Field label: bold label for input fields -->
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <!-- ==================== Button Styles ==================== -->
+
+        <!-- Standard action button -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="5"/>
+        </Style>
+
+        <!-- Dialog action button (Save, Cancel, Close) -->
+        <Style x:Key="DialogButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+        </Style>
+
+        <!-- Browse/folder picker button -->
+        <Style x:Key="BrowseButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="120"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- ==================== Input Styles ==================== -->
+
+        <!-- Text input field -->
+        <Style x:Key="TextInputStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- Read-only display field (bound text) -->
+        <Style x:Key="ReadOnlyFieldStyle" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="Margin" Value="0,0,10,10"/>
+        </Style>
+
+        <!-- Password input field -->
+        <Style x:Key="PasswordInputStyle" TargetType="PasswordBox">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <!-- ==================== Menu Styles ==================== -->
+
+        <!-- Menu item icon sizing -->
+        <Style x:Key="MenuItemIconStyle" TargetType="Image">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+        </Style>
+
     </Application.Resources>
 </Application>

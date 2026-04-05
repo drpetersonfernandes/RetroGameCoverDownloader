@@ -29,7 +29,7 @@ public static partial class UpdateCheckerService
             if (!Http.DefaultRequestHeaders.Contains("User-Agent"))
                 Http.DefaultRequestHeaders.Add("User-Agent", $"{RepoName}-UpdateChecker");
 
-            using var resp = await Http.GetAsync(LatestApiUrl);
+            using var resp = await RetryOnTransientErrorAsync(static () => Http.GetAsync(LatestApiUrl));
             if (!resp.IsSuccessStatusCode) return; // silent if offline or GitHub unhappy
 
             await using var jsonStream = await resp.Content.ReadAsStreamAsync();
@@ -82,6 +82,30 @@ public static partial class UpdateCheckerService
             // Non-fatal: log and continue silently
             BugReportService.LogErrorSync(ex, "UpdateCheckerService.CheckForUpdateAsync");
         }
+    }
+
+    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3)
+    {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                return await action();
+            }
+            catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+                await Task.Delay(delay);
+            }
+        }
+
+        return await action();
+    }
+
+    private static bool IsTransientError(Exception ex)
+    {
+        return ex is TaskCanceledException { InnerException: TimeoutException }
+            or HttpRequestException { InnerException: System.Net.Sockets.SocketException };
     }
 
     [GeneratedRegex(@"\d+\.\d+\.\d+")]

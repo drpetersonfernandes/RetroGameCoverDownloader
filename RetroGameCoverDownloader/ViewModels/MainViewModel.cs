@@ -16,6 +16,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _cts;
     private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
     private TimeSpan _remainingWaitTime;
+    private string? _currentToken;
 
     // Data
     public ObservableCollection<SystemConfig> Systems { get; } = new();
@@ -58,6 +59,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         // Initialize GitHubService with proxy settings
+        _currentToken = settings.GitHubToken;
         _gitHubService = new GitHubService(
             settings.GitHubToken,
             settings.UseProxy,
@@ -163,13 +165,28 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            // Load current settings to preserve proxy configuration
+            var settings = SettingsManager.LoadSettings();
+
+            // Create new service before disposing old one to avoid leaving _gitHubService in a disposed state
+            var newService = new GitHubService(
+                token,
+                settings.UseProxy,
+                settings.ProxyHost,
+                settings.ProxyPort,
+                settings.ProxyUsername,
+                settings.ProxyPassword);
+
             // Cleanup old service
             _gitHubService.RateLimitHit -= OnRateLimitHit;
             _gitHubService.Dispose();
 
-            // Init new service
-            _gitHubService = new GitHubService(token);
+            // Swap in new service
+            _gitHubService = newService;
             _gitHubService.RateLimitHit += OnRateLimitHit;
+
+            // Store the current token for future proxy updates
+            _currentToken = token;
 
             Log("[MainViewModel] GitHub token updated. Rate limits increased.");
         }
@@ -185,21 +202,21 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            // Cleanup old service
-            _gitHubService.RateLimitHit -= OnRateLimitHit;
-            _gitHubService.Dispose();
-
-            // Get current token from settings
-            var settings = SettingsManager.LoadSettings();
-
-            // Init new service with proxy settings
-            _gitHubService = new GitHubService(
-                settings.GitHubToken,
+            // Create new service before disposing old one to avoid leaving _gitHubService in a disposed state
+            var newService = new GitHubService(
+                _currentToken,
                 useProxy,
                 proxyHost,
                 proxyPort,
                 proxyUsername,
                 proxyPassword);
+
+            // Cleanup old service
+            _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.Dispose();
+
+            // Swap in new service
+            _gitHubService = newService;
             _gitHubService.RateLimitHit += OnRateLimitHit;
 
             var proxyStatus = useProxy ? $"enabled (http://{proxyHost}:{proxyPort})" : "disabled";
@@ -286,6 +303,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             LogText += $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+
+            // Cap log size to prevent unbounded memory growth
+            const int maxLogLength = 100_000;
+            if (LogText.Length > maxLogLength)
+            {
+                LogText = LogText[^maxLogLength..];
+                LogText = LogText.Substring(LogText.IndexOf(Environment.NewLine, StringComparison.Ordinal) + Environment.NewLine.Length);
+            }
         }
         catch (Exception ex)
         {
@@ -373,8 +398,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         if (SelectedSystem == null) return;
 
-        _itemsToDownload.Clear();
-
         IsBusy = true;
         _itemsToDownload.Clear();
         Log("--- Starting Preparation ---");
@@ -383,25 +406,25 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             await Task.Run(async () =>
             {
-                // 1. Scan ROMs
-                Log($"Scanning ROM folder: {RomFolderPath}");
-                var romFiles = Directory.GetFiles(RomFolderPath);
-                var romNames = romFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Log($"Found {romNames.Count} ROMs.");
-
-                // 2. Scan Covers
-                Log($"Scanning Cover folder: {CoverFolderPath}");
-                var coverFiles = Directory.GetFiles(CoverFolderPath);
-                var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Log($"Found {coverNames.Count} existing covers.");
-
-                // Validate folders exist
+                // 1. Validate folders exist before reading
                 if (!Directory.Exists(RomFolderPath) || !Directory.Exists(CoverFolderPath))
                 {
                     const string errorMsg = "ROM folder or Cover folder does not exist.";
                     Log($"[PrepareDownloadAsync] {errorMsg}");
                     throw new DirectoryNotFoundException(errorMsg);
                 }
+
+                // 2. Scan ROMs
+                Log($"Scanning ROM folder: {RomFolderPath}");
+                var romFiles = Directory.GetFiles(RomFolderPath);
+                var romNames = romFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                Log($"Found {romNames.Count} ROMs.");
+
+                // 3. Scan Covers
+                Log($"Scanning Cover folder: {CoverFolderPath}");
+                var coverFiles = Directory.GetFiles(CoverFolderPath);
+                var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                Log($"Found {coverNames.Count} existing covers.");
 
                 // 3. Identify Missing
                 var missingCovers = romNames.Where(r => !coverNames.Contains(r)).ToList();
@@ -438,7 +461,9 @@ public class MainViewModel : ViewModelBase, IDisposable
                     {
                         var fileName = Path.GetFileName(match.Path);
                         // Construct raw URL using the detected branch.
-                        var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/{branch}/{Uri.EscapeDataString(match.Path)}";
+                        // Encode each path segment separately to preserve '/' separators.
+                        var encodedPath = string.Join("/", match.Path.Split('/').Select(Uri.EscapeDataString));
+                        var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/{branch}/{encodedPath}";
 
                         _itemsToDownload.Add(new CoverDownloadItem
                         {
@@ -461,8 +486,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[PrepareDownloadAsync] Access denied to folder: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] Unauthorized access to ROM or Cover folder.");
-            // Re-throw to maintain existing behavior
-            throw;
         }
         catch (Exception ex)
         {
@@ -474,6 +497,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             try
             {
                 IsBusy = false;
+                _countdownTimer.Stop();
                 // Force command refresh to enable Download button
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -530,6 +554,13 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 if (data != null)
                 {
+                    // Check for disk space before writing
+                    var driveInfo = new DriveInfo(Path.GetPathRoot(CoverFolderPath) ?? throw new InvalidOperationException("Could not get root path of Cover folder"));
+                    if (driveInfo.AvailableFreeSpace < 10 * 1024 * 1024) // 10MB threshold
+                    {
+                        throw new IOException("Low disk space detected. Download aborted.");
+                    }
+
                     var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
                     await File.WriteAllBytesAsync(savePath, data, token);
 
@@ -546,13 +577,6 @@ public class MainViewModel : ViewModelBase, IDisposable
                     Log($"Failed to download {item.GameName}");
                 }
 
-                // Check for disk space (rough estimate)
-                var driveInfo = new DriveInfo(Path.GetPathRoot(CoverFolderPath) ?? throw new InvalidOperationException("Could not get root path of Cover folder"));
-                if (driveInfo.AvailableFreeSpace < 10 * 1024 * 1024) // 10MB threshold
-                {
-                    throw new IOException("Low disk space detected. Download aborted.");
-                }
-
                 ProgressValue++;
             }
         }
@@ -565,7 +589,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[DownloadCoversAsync] File I/O error: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] IOException during file operations.");
-            throw;
         }
         catch (Exception ex)
         {
@@ -577,6 +600,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             try
             {
                 Log($"Download finished. Successfully saved {successCount} covers.");
+                StatusMessage = $"Download complete. Saved {successCount} covers.";
+                _countdownTimer.Stop();
                 IsBusy = false;
             }
             catch (Exception ex)
@@ -627,8 +652,14 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+
+        _disposed = true;
+
         _cts?.Dispose();
         _gitHubService.Dispose();
         GC.SuppressFinalize(this);
     }
+
+    private bool _disposed;
 }

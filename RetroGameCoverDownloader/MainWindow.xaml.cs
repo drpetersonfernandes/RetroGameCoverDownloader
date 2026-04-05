@@ -96,7 +96,7 @@ public partial class MainWindow
                         dialog.ProxyPassword);
 
                     var proxyStatus = dialog.UseProxy ? $"enabled (http://{dialog.ProxyHost}:{dialog.ProxyPort})" : "disabled";
-                    MessageBox.Show($"Proxy settings saved. Proxy: {proxyStatus}\n\nNote: You may need to restart the application for settings to fully take effect.",
+                    MessageBox.Show($"Proxy settings saved and applied. Proxy: {proxyStatus}",
                         "Proxy Settings", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)

@@ -5,7 +5,8 @@
          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
          xmlns:viewModels="clr-namespace:RetroGameCoverDownloader.ViewModels"
          mc:Ignorable="d"
-        Title="Retro Game Cover Downloader" Height="600" Width="800" WindowStartupLocation="CenterScreen">
+        Title="Retro Game Cover Downloader" Height="600" Width="800" WindowStartupLocation="CenterScreen"
+        ToolTip="Download retro game cover art from libretro-thumbnails repositories">
     
     <Window.DataContext>
         <viewModels:MainViewModel/>
@@ -19,24 +20,44 @@
         </Grid.RowDefinitions>
         
         <!-- Menu Bar -->
-        <Menu Grid.Row="0">
-            <MenuItem Header="_File">
-                <MenuItem Header="_Proxy Settings" Click="ProxySettingsMenuItem_Click">
+        <Menu Grid.Row="0" ToolTip="Application menu">
+            <MenuItem Header="_File" ToolTip="File and settings options">
+                <MenuItem Header="_Proxy Settings" Click="ProxySettingsMenuItem_Click"
+                          ToolTip="Configure a proxy server for network-restricted environments">
                     <MenuItem.Icon>
-                        <Image Source="pack://application:,,,/images/folder.png" Width="16" Height="16"/>
+                        <Viewbox Width="16" Height="16">
+                            <Canvas Width="24" Height="24">
+                                <!-- Globe -->
+                                <Ellipse Canvas.Left="2" Canvas.Top="2" Width="20" Height="20"
+                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"/>
+                                <Ellipse Canvas.Left="6" Canvas.Top="2" Width="12" Height="20"
+                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1" Fill="Transparent"/>
+                                <Line X1="2" Y1="12" X2="22" Y2="12"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"/>
+                                <Line X1="12" Y1="2" X2="12" Y2="22"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"/>
+                                <!-- Transfer arrows -->
+                                <Path Data="M3,16 L6,14 L6,15.5 L9,15.5 L9,16.5 L6,16.5 L6,18 Z"
+                                      Fill="{StaticResource MenuItemIconForeground}"/>
+                                <Path Data="M21,8 L18,10 L18,8.5 L15,8.5 L15,7.5 L18,7.5 L18,6 Z"
+                                      Fill="{StaticResource MenuItemIconForeground}"/>
+                            </Canvas>
+                        </Viewbox>
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="_Exit" Click="ExitMenuItem_Click">
+                <MenuItem Header="_Exit" Click="ExitMenuItem_Click"
+                          ToolTip="Close the application">
                     <MenuItem.Icon>
-                        <Image Source="pack://application:,,,/images/exit.png" Width="16" Height="16"/>
+                        <Image Source="pack://application:,,,/images/exit.png" Style="{StaticResource MenuItemIconStyle}"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
-            <MenuItem Header="_Help">
-                <MenuItem Header="_About" Click="AboutMenuItem_Click">
+            <MenuItem Header="_Help" ToolTip="Help and information">
+                <MenuItem Header="_About" Click="AboutMenuItem_Click"
+                          ToolTip="View application version and credits">
                     <MenuItem.Icon>
-                        <Image Source="pack://application:,,,/images/about.png" Width="16" Height="16"/>
+                        <Image Source="pack://application:,,,/images/about.png" Style="{StaticResource MenuItemIconStyle}"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
@@ -53,7 +74,7 @@
         </Grid.RowDefinitions>
 
         <!-- 1 & 2: Folder Inputs -->
-        <Grid Grid.Row="0">
+        <Grid Grid.Row="0" ToolTip="Select your ROM folder and destination folder for cover art">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -64,52 +85,67 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Text="ROM Folder:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RomFolderPath}" Margin="0,0,10,10" IsReadOnly="True"/>
-            <Button Grid.Row="0" Grid.Column="2" Content="Set ROM Folder" Command="{Binding BrowseRomCommand}" Width="120" Margin="0,0,0,10"/>
+            <TextBlock Text="ROM Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
+                       ToolTip="Path to the folder containing your ROM files"/>
+            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RomFolderPath}"
+                     Style="{StaticResource ReadOnlyFieldStyle}"
+                     ToolTip="Selected ROM folder path (read-only, use the Browse button to change)"/>
+            <Button Grid.Row="0" Grid.Column="2" Content="Set ROM Folder" Command="{Binding BrowseRomCommand}"
+                    Style="{StaticResource BrowseButtonStyle}"
+                    ToolTip="Browse for the folder containing your ROM files"/>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Cover Folder:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CoverFolderPath}" Margin="0,0,10,10" IsReadOnly="True"/>
-            <Button Grid.Row="1" Grid.Column="2" Content="Set Cover Folder" Command="{Binding BrowseCoverCommand}" Width="120" Margin="0,0,0,10"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Cover Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
+                       ToolTip="Path to the folder where downloaded cover art will be saved"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CoverFolderPath}"
+                     Style="{StaticResource ReadOnlyFieldStyle}"
+                     ToolTip="Selected cover art destination folder (read-only, use the Browse button to change)"/>
+            <Button Grid.Row="1" Grid.Column="2" Content="Set Cover Folder" Command="{Binding BrowseCoverCommand}"
+                    Style="{StaticResource BrowseButtonStyle}"
+                    ToolTip="Browse for the folder to save downloaded cover art"/>
         </Grid>
 
         <!-- 3: System Dropdown -->
         <StackPanel Grid.Row="1" Margin="0,0,0,10">
-            <TextBlock Text="Select System:" Margin="0,0,0,5"/>
+            <TextBlock Text="Select System:" Style="{StaticResource SectionHeadingStyle}"
+                       ToolTip="Choose the game system to download covers for"/>
             <ComboBox ItemsSource="{Binding Systems}" 
                        SelectedItem="{Binding SelectedSystem}"
                        DisplayMemberPath="SystemName"
-                       IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/> 
+                       IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
+                       ToolTip="Select the game system whose covers you want to download (populated from GitHub)"/> 
         </StackPanel>
 
         <!-- 4, 5, 6: Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
-            <Button Content="Prepare for Download" Command="{Binding PrepareCommand}" Width="150" Height="30" Margin="5"/>
-            <Button Content="Download Covers" Command="{Binding DownloadCommand}" Width="150" Height="30" Margin="5"/>
-            <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100" Height="30" Margin="5"/>
+            <Button Content="Prepare for Download" Command="{Binding PrepareCommand}"
+                    Width="150" Style="{StaticResource ActionButtonStyle}"
+                    ToolTip="Scan ROM folder and match with available covers on GitHub"/>
+            <Button Content="Download Covers" Command="{Binding DownloadCommand}"
+                    Width="150" Style="{StaticResource ActionButtonStyle}"
+                    ToolTip="Start downloading matched cover art files"/>
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    Width="100" Style="{StaticResource ActionButtonStyle}"
+                    ToolTip="Cancel the current download or preparation operation"/>
         </StackPanel>
 
         <!-- Progress Bar Section -->
         <StackPanel Grid.Row="3" Margin="0,0,0,10">
             <!-- TextBlock for the Status/Clock -->
             <TextBlock Text="{Binding StatusMessage}" 
-                        HorizontalAlignment="Center" 
-                        FontWeight="Bold" 
-                        Foreground="#333333"
-                        Margin="0,0,0,5"/>
+                        Style="{StaticResource StatusTextStyle}"
+                        ToolTip="Current operation status and progress messages"/>
             
             <ProgressBar Height="20" 
-                          Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"/>
+                          Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"
+                          ToolTip="Download progress bar showing completed vs total covers"/>
         </StackPanel>
 
         <!-- Log Window -->
-        <GroupBox Grid.Row="4" Header="Log">
+        <GroupBox Grid.Row="4" Header="Log" ToolTip="Detailed log of all operations and events">
             <TextBox Text="{Binding LogText}" 
-                      VerticalScrollBarVisibility="Auto" 
-                      TextWrapping="Wrap" 
-                      IsReadOnly="True"
-                      FontFamily="Consolas"
-                      TextChanged="TextBox_TextChanged"/>
+                      Style="{StaticResource LogTextStyle}"
+                      TextChanged="TextBox_TextChanged"
+                      ToolTip="Real-time log output showing scan results, download status, and errors"/>
         </GroupBox>
         </Grid>
     </Grid>

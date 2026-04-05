@@ -52,8 +52,8 @@ public partial class App
         // Fallback to positional arguments if no flags provided
         if (romPath == null && coverPath == null && args.Length >= 2)
         {
-            coverPath = args[0];
-            romPath = args[1];
+            romPath = args[0];
+            coverPath = args[1];
         }
 
         // Create and show the main window

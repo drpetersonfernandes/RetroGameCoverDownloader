@@ -7,5 +7,5 @@ public class GitHubTreeItem
 
     public string Mode { get; init; } = "";
 
-    public static string Sha => "";
+    public string Sha { get; init; } = "";
 }

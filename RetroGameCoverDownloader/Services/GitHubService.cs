@@ -36,14 +36,27 @@ public class GitHubService : IDisposable
         // Configure proxy if enabled
         if (useProxy && !string.IsNullOrWhiteSpace(proxyHost) && proxyPort > 0)
         {
+            // Strip protocol prefix if user accidentally included it
+            var cleanHost = proxyHost.Trim();
+            if (cleanHost.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanHost = cleanHost["http://".Length..];
+            }
+            else if (cleanHost.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanHost = cleanHost["https://".Length..];
+            }
+
+            cleanHost = cleanHost.TrimEnd('/');
+
             var proxy = new WebProxy
             {
-                Address = new Uri($"http://{proxyHost}:{proxyPort}"),
+                Address = new Uri($"http://{cleanHost}:{proxyPort}"),
                 BypassProxyOnLocal = false
             };
 
-            // Add credentials if provided
-            if (!string.IsNullOrWhiteSpace(proxyUsername))
+            // Add credentials only if both username and password are provided
+            if (!string.IsNullOrWhiteSpace(proxyUsername) && !string.IsNullOrWhiteSpace(proxyPassword))
             {
                 proxy.Credentials = new NetworkCredential(proxyUsername, proxyPassword);
             }
@@ -90,14 +103,14 @@ public class GitHubService : IDisposable
             const string gitmodulesUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{MainRepoBranch}/.gitmodules";
 
             await _rateLimiter.WaitForSlotAsync();
-            var gitmodulesContent = await _httpClient.GetStringAsync(gitmodulesUrl);
+            var gitmodulesContent = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(gitmodulesUrl));
             var repoNameMap = ParseGitmodules(gitmodulesContent);
 
             logAction("Fetching main repository tree...");
             const string mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{MainRepoBranch}?recursive=1";
 
             await _rateLimiter.WaitForSlotAsync();
-            var jsonResponse = await _httpClient.GetStringAsync(mainRepoApiUrl);
+            var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl));
             var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
 
             if (tree?.Tree != null)
@@ -134,7 +147,7 @@ public class GitHubService : IDisposable
                 var apiUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}?recursive=1";
                 await _rateLimiter.WaitForSlotAsync();
 
-                var response = await _httpClient.GetAsync(apiUrl);
+                var response = await RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl));
 
                 switch (response.StatusCode)
                 {
@@ -182,20 +195,20 @@ public class GitHubService : IDisposable
             // 1. Get root tree (non-recursive)
             var rootUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}";
             await _rateLimiter.WaitForSlotAsync();
-            var rootJson = await _httpClient.GetStringAsync(rootUrl);
+            var rootJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl));
             var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
 
             // 2. Find the "Named_Boxarts" folder entry
             var folderEntry = rootTree?.Tree.FirstOrDefault(i =>
                 i.Type == "tree" && string.Equals(i.Path, system.FolderPath, StringComparison.OrdinalIgnoreCase));
 
-            if (folderEntry != null && !string.IsNullOrEmpty(GitHubTreeItem.Sha))
+            if (folderEntry != null && !string.IsNullOrEmpty(folderEntry.Sha))
             {
                 // 3. Fetch the tree for that specific folder (non-recursive is usually enough)
                 // We use the SHA of the folder to get its contents directly
-                var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{GitHubTreeItem.Sha}";
+                var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{folderEntry.Sha}";
                 await _rateLimiter.WaitForSlotAsync();
-                var folderJson = await _httpClient.GetStringAsync(folderUrl);
+                var folderJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl));
                 var folderTree = JsonSerializer.Deserialize<GitHubTree>(folderJson, _jsonOptions);
 
                 if (folderTree?.Tree != null)
@@ -256,9 +269,13 @@ public class GitHubService : IDisposable
 
                 if (currentCount >= 5)
                 {
-                    _circuitBreakerOpenUntil = DateTime.UtcNow.AddSeconds(30);
-                    logAction?.Invoke("⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
-                    Interlocked.Exchange(ref _consecutive503Count, 0); // Reset for next cycle
+                    // Use CompareExchange to ensure only one thread triggers the cooldown
+                    if (Interlocked.CompareExchange(ref _consecutive503Count, 0, currentCount) == currentCount)
+                    {
+                        _circuitBreakerOpenUntil = DateTime.UtcNow.AddSeconds(30);
+                        logAction?.Invoke("⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
+                    }
+
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                 }
                 else
@@ -302,6 +319,30 @@ public class GitHubService : IDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3)
+    {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                return await action();
+            }
+            catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+                await Task.Delay(delay);
+            }
+        }
+
+        return await action();
+    }
+
+    private static bool IsTransientError(Exception ex)
+    {
+        return ex is TaskCanceledException { InnerException: TimeoutException }
+            or HttpRequestException { InnerException: System.Net.Sockets.SocketException };
     }
 
     private static Dictionary<string, string> ParseGitmodules(string content)
@@ -357,7 +398,13 @@ public class GitHubService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+
+        _disposed = true;
+
         _httpClient.Dispose();
         GC.SuppressFinalize(this);
     }
+
+    private bool _disposed;
 }
