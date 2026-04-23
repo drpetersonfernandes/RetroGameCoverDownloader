@@ -10,9 +10,13 @@ namespace RetroGameCoverDownloader;
 
 public partial class MainWindow
 {
+    private readonly ViewModels.MainViewModel _viewModel;
+
     public MainWindow()
     {
         InitializeComponent();
+        _viewModel = new ViewModels.MainViewModel();
+        DataContext = _viewModel;
         Loaded += OnLoaded;
     }
 
@@ -25,19 +29,18 @@ public partial class MainWindow
 
             if (string.IsNullOrWhiteSpace(settings.GitHubToken))
             {
-                var dialog = new TokenDialog();
+                var dialog = new TokenDialog { Owner = this };
                 if (dialog.ShowDialog() == true)
                 {
-                    try
-                    {
-                        settings.GitHubToken = dialog.Token;
-                        SettingsManager.SaveSettings(settings);
+                try
+                {
+                    settings.GitHubToken = dialog.Token;
+                    SettingsManager.SaveSettings(settings);
 
-                        // Log successful token save (without exposing token) and update the running service
-                        var viewModel = DataContext as ViewModels.MainViewModel;
-                        viewModel?.UpdateToken(dialog.Token);
-                        viewModel?.Log("[OnLoaded] GitHub token saved successfully.");
-                    }
+                    // Log successful token save (without exposing token) and update the running service
+                    _viewModel.UpdateToken(dialog.Token);
+                    _viewModel.Log("[OnLoaded] GitHub token saved successfully.");
+                }
                     catch (Exception ex)
                     {
                         MessageBox.Show("Failed to save token. The application may have limited functionality.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -62,14 +65,37 @@ public partial class MainWindow
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
     {
+        try
+        {
+            _viewModel.CancelAll();
+            _viewModel.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, "[ExitMenuItem_Click] Error during cleanup.");
+        }
+
         Close();
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        try
+        {
+            _viewModel.CancelAll();
+            _viewModel.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, "[MainWindow_Closing] Error during cleanup.");
+        }
     }
 
     private void ProxySettingsMenuItem_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var dialog = new ProxySettingsDialog();
+            var dialog = new ProxySettingsDialog { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 try

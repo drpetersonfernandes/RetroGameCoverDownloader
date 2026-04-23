@@ -15,65 +15,102 @@ public partial class App
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Subscribe to all unhandled exception handlers to ensure every bug is forwarded
         DispatcherUnhandledException += App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
 
-        // Parse command-line arguments
-        // Usage:
-        //   RetroGameCoverDownloader.exe "C:\ROMs" "C:\Covers"
-        //   RetroGameCoverDownloader.exe --rom "C:\ROMs" --cover "C:\Covers"
-        //   RetroGameCoverDownloader.exe /rom "C:\ROMs" /cover "C:\Covers"
-        string? romPath = null;
-        string? coverPath = null;
+        // Fire-and-forget launch telemetry
+        _ = ApplicationStatsService.TrackLaunchAsync();
 
-        var args = e.Args;
-        for (var i = 0; i < args.Length; i++)
+        try
         {
-            var arg = args[i];
+            // Parse command-line arguments
+            // Usage:
+            //   RetroGameCoverDownloader.exe "C:\ROMs" "C:\Covers"
+            //   RetroGameCoverDownloader.exe --rom "C:\ROMs" --cover "C:\Covers"
+            //   RetroGameCoverDownloader.exe /rom "C:\ROMs" /cover "C:\Covers"
+            string? romPath = null;
+            string? coverPath = null;
 
-            // Support both / and -- prefixes
-            if (arg.Equals("/rom", StringComparison.OrdinalIgnoreCase) ||
-                arg.Equals("--rom", StringComparison.OrdinalIgnoreCase))
+            var args = e.Args;
+            for (var i = 0; i < args.Length; i++)
             {
-                if (i + 1 < args.Length)
+                var arg = args[i];
+
+                // Support both / and -- prefixes
+                if (arg.Equals("/rom", StringComparison.OrdinalIgnoreCase) ||
+                    arg.Equals("--rom", StringComparison.OrdinalIgnoreCase))
                 {
-                    romPath = args[++i];
+                    if (i + 1 < args.Length)
+                    {
+                        romPath = args[++i];
+                    }
+                }
+                else if (arg.Equals("/cover", StringComparison.OrdinalIgnoreCase) ||
+                         arg.Equals("--cover", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        coverPath = args[++i];
+                    }
                 }
             }
-            else if (arg.Equals("/cover", StringComparison.OrdinalIgnoreCase) ||
-                     arg.Equals("--cover", StringComparison.OrdinalIgnoreCase))
+
+            // Fallback to positional arguments if no flags provided
+            if (romPath == null && coverPath == null && args.Length >= 2)
             {
-                if (i + 1 < args.Length)
+                romPath = args[0];
+                coverPath = args[1];
+            }
+
+            // Create and show the main window
+            var mainWindow = new MainWindow();
+
+            // Set paths in ViewModel if provided
+            if (mainWindow.DataContext is MainViewModel viewModel)
+            {
+                if (!string.IsNullOrWhiteSpace(romPath))
                 {
-                    coverPath = args[++i];
+                    viewModel.RomFolderPath = romPath;
+                }
+
+                if (!string.IsNullOrWhiteSpace(coverPath))
+                {
+                    viewModel.CoverFolderPath = coverPath;
                 }
             }
+
+            mainWindow.Show();
         }
-
-        // Fallback to positional arguments if no flags provided
-        if (romPath == null && coverPath == null && args.Length >= 2)
+        catch (Exception ex)
         {
-            romPath = args[0];
-            coverPath = args[1];
-        }
-
-        // Create and show the main window
-        var mainWindow = new MainWindow();
-
-        // Set paths in ViewModel if provided
-        if (mainWindow.DataContext is MainViewModel viewModel)
-        {
-            if (!string.IsNullOrWhiteSpace(romPath))
+            try
             {
-                viewModel.RomFolderPath = romPath;
+                BugReportService.LogErrorSync(ex, "[App.OnStartup] Unhandled exception during application startup.");
+            }
+            catch (Exception logEx)
+            {
+                try
+                {
+                    var criticalMsg = $"[{DateTime.Now}] CRITICAL: BugReportService failed during startup. Original: {ex.Message}. Logging error: {logEx.Message}";
+                    System.IO.File.AppendAllText("critical_startup_error.log", criticalMsg);
+                }
+                catch
+                {
+                    /* Last resort - ignore */
+                }
             }
 
-            if (!string.IsNullOrWhiteSpace(coverPath))
-            {
-                viewModel.CoverFolderPath = coverPath;
-            }
-        }
+            MessageBox.Show(
+                "An unexpected error occurred during startup. The application will now close.",
+                "Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
 
-        mainWindow.Show();
+            Current.Shutdown();
+        }
     }
 
     private static void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -81,7 +118,7 @@ public partial class App
         try
         {
             // Log the exception
-            BugReportService.LogErrorSync(e.Exception, "An unhandled exception occurred.");
+            BugReportService.LogErrorSync(e.Exception, "An unhandled dispatcher exception occurred.");
         }
         catch (Exception logEx)
         {
@@ -107,5 +144,69 @@ public partial class App
         // Prevent default unhandled exception processing and shut down
         e.Handled = true;
         Current.Shutdown();
+    }
+
+    private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        try
+        {
+            var exception = e.ExceptionObject as Exception ?? new Exception($"Non-exception object thrown: {e.ExceptionObject}");
+            BugReportService.LogErrorSync(exception, "An unhandled AppDomain exception occurred.");
+        }
+        catch (Exception logEx)
+        {
+            try
+            {
+                var criticalMsg = $"[{DateTime.Now}] CRITICAL: BugReportService failed during AppDomain unhandled exception. Logging error: {logEx.Message}";
+                System.IO.File.AppendAllText("critical_appdomain_error.log", criticalMsg);
+            }
+            catch
+            {
+                /* Last resort - ignore */
+            }
+        }
+
+        // For non-UI thread exceptions, we can't show a message box reliably, but we'll try
+        try
+        {
+            MessageBox.Show(
+                "A fatal error occurred on a background thread. The application will now close.",
+                "Fatal Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        catch
+        {
+            /* Ignore message box failure */
+        }
+
+        // If the exception is terminal, the runtime will terminate the process anyway
+        if (e.IsTerminating)
+        {
+            Current.Shutdown();
+        }
+    }
+
+    private static void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        try
+        {
+            BugReportService.LogErrorSync(e.Exception, "An unobserved task exception occurred.");
+        }
+        catch (Exception logEx)
+        {
+            try
+            {
+                var criticalMsg = $"[{DateTime.Now}] CRITICAL: BugReportService failed during unobserved task exception. Logging error: {logEx.Message}";
+                System.IO.File.AppendAllText("critical_task_error.log", criticalMsg);
+            }
+            catch
+            {
+                /* Last resort - ignore */
+            }
+        }
+
+        // Mark the exception as observed to prevent process termination
+        e.SetObserved();
     }
 }

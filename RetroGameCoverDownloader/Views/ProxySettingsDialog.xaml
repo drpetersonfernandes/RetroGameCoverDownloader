@@ -5,7 +5,7 @@
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         ToolTip="Configure proxy server settings for network-restricted environments">
     <ScrollViewer VerticalScrollBarVisibility="Auto" ToolTip="Scroll to see all proxy configuration options">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" ToolTip="Proxy configuration form">
             <!-- Title -->
             <TextBlock Text="Proxy Configuration" Style="{StaticResource TitleTextStyle}"
                        ToolTip="Proxy server configuration for bypassing network restrictions"/>
@@ -28,40 +28,42 @@
                 <!-- Proxy Host -->
                 <TextBlock Text="Proxy Host:" Style="{StaticResource FieldLabelStyle}"
                            ToolTip="The hostname or IP address of the proxy server"/>
-                <TextBox x:Name="ProxyHostBox" Height="30" Margin="0,0,0,10" 
+                <TextBox x:Name="ProxyHostBox" Style="{StaticResource TextInputStyle}"
                          ToolTip="Enter the proxy server address (e.g., 127.0.0.1 or proxy.example.com)"/>
                 
                 <!-- Proxy Port -->
                 <TextBlock Text="Proxy Port:" Style="{StaticResource FieldLabelStyle}"
                            ToolTip="The network port the proxy server listens on"/>
-                <TextBox x:Name="ProxyPortBox" Height="30" Margin="0,0,0,10" 
+                <TextBox x:Name="ProxyPortBox" Style="{StaticResource TextInputStyle}"
                          ToolTip="Enter the proxy port (e.g., 1080, 8080)"/>
                 
                 <!-- Authentication -->
                 <TextBlock Text="Authentication (optional):" Style="{StaticResource FieldLabelStyle}"
                            ToolTip="Optional credentials for authenticated proxy servers"/>
                 <TextBlock Text="Leave empty if proxy doesn't require credentials)" 
-                           Style="{StaticResource NoteTextStyle}"/>
+                           Style="{StaticResource NoteTextStyle}"
+                           ToolTip="Only fill in username and password if your proxy requires authentication"/>
                 
                 <!-- Username -->
                 <TextBlock Text="Username:" Margin="0,0,0,5"
                            ToolTip="Proxy authentication username"/>
-                <TextBox x:Name="ProxyUsernameBox" Height="30" Margin="0,0,0,10"
+                <TextBox x:Name="ProxyUsernameBox" Style="{StaticResource TextInputStyle}"
                          ToolTip="Enter your proxy username (leave empty if no authentication required)"/>
                 
                 <!-- Password -->
                 <TextBlock Text="Password:" Margin="0,0,0,5"
                            ToolTip="Proxy authentication password"/>
-                <PasswordBox x:Name="ProxyPasswordBox" Height="30" Margin="0,0,0,15"
+                <PasswordBox x:Name="ProxyPasswordBox" Style="{StaticResource PasswordInputStyle}"
                              ToolTip="Enter your proxy password (leave empty if no authentication required)"/>
             </StackPanel>
             
             <!-- Note -->
             <TextBlock Text="Proxy settings will be applied immediately after saving." 
-                       Style="{StaticResource NoteTextStyle}"/>
+                       Style="{StaticResource NoteTextStyle}"
+                       ToolTip="Your proxy settings will take effect as soon as you click Save"/>
             
             <!-- Buttons -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" ToolTip="Dialog action buttons">
                 <Button Content="Cancel" Click="CancelButton_Click" Style="{StaticResource DialogButtonStyle}"
                         ToolTip="Discard proxy changes and close this dialog"/>
                 <Button Content="Save" Click="SaveButton_Click" Style="{StaticResource DialogButtonStyle}"

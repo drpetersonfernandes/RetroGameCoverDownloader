@@ -5,7 +5,7 @@
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         ToolTip="Configure a GitHub Personal Access Token for higher rate limits">
     <ScrollViewer VerticalScrollBarVisibility="Auto" ToolTip="Scroll to see all token setup instructions">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" ToolTip="GitHub token setup form">
             <!-- Title -->
             <TextBlock Text="GitHub Personal Access Token" Style="{StaticResource TitleTextStyle}"
                        ToolTip="Set up authentication for higher GitHub API usage limits"/>
@@ -50,15 +50,16 @@
             <!-- Token Input -->
             <TextBlock Text="Token (optional):" Style="{StaticResource FieldLabelStyle}"
                        ToolTip="Paste your GitHub Personal Access Token here"/>
-            <TextBox x:Name="TokenBox" Height="30" Margin="0,0,0,20"
+            <TextBox x:Name="TokenBox" Style="{StaticResource TextInputStyle}" Margin="0,0,0,20"
                      ToolTip="Paste your GitHub token here, or leave empty to proceed with limited rate (55 requests/hour)"/>
             
             <!-- Note -->
             <TextBlock Text="Leave empty to proceed without a token, but expect slower downloads." 
-                       Style="{StaticResource NoteTextStyle}"/>
+                       Style="{StaticResource NoteTextStyle}"
+                       ToolTip="Without a token, downloads will be limited to approximately 55 per hour"/>
             
             <!-- Buttons -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" ToolTip="Dialog action buttons">
                 <Button Content="Cancel" Click="CancelButton_Click" Style="{StaticResource DialogButtonStyle}"
                         ToolTip="Close without saving a token (will use limited anonymous rate)"/>
                 <Button Content="Save &amp; Continue" Click="SaveButton_Click" Style="{StaticResource DialogButtonStyle}"

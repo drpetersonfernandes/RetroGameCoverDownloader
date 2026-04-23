@@ -6,14 +6,11 @@
          xmlns:viewModels="clr-namespace:RetroGameCoverDownloader.ViewModels"
          mc:Ignorable="d"
         Title="Retro Game Cover Downloader" Height="600" Width="800" WindowStartupLocation="CenterScreen"
+        Closing="MainWindow_Closing"
         ToolTip="Download retro game cover art from libretro-thumbnails repositories">
-    
-    <Window.DataContext>
-        <viewModels:MainViewModel/>
-    </Window.DataContext>
 
     <!-- Main Layout Grid -->
-    <Grid>
+    <Grid ToolTip="Main application layout">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Menu -->
             <RowDefinition Height="*"/>    <!-- Content -->
@@ -25,31 +22,38 @@
                 <MenuItem Header="_Proxy Settings" Click="ProxySettingsMenuItem_Click"
                           ToolTip="Configure a proxy server for network-restricted environments">
                     <MenuItem.Icon>
-                        <Viewbox Width="16" Height="16">
-                            <Canvas Width="24" Height="24">
+                        <Viewbox Width="16" Height="16" ToolTip="Proxy settings icon">
+                            <Canvas Width="24" Height="24" ToolTip="Proxy settings icon canvas">
                                 <!-- Globe -->
                                 <Ellipse Canvas.Left="2" Canvas.Top="2" Width="20" Height="20"
-                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"/>
+                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"
+                                         ToolTip="Globe outer ring"/>
                                 <Ellipse Canvas.Left="6" Canvas.Top="2" Width="12" Height="20"
-                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1" Fill="Transparent"/>
+                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1" Fill="Transparent"
+                                         ToolTip="Globe inner ring"/>
                                 <Line X1="2" Y1="12" X2="22" Y2="12"
-                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"/>
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"
+                                      ToolTip="Globe horizontal line"/>
                                 <Line X1="12" Y1="2" X2="12" Y2="22"
-                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"/>
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1"
+                                      ToolTip="Globe vertical line"/>
                                 <!-- Transfer arrows -->
                                 <Path Data="M3,16 L6,14 L6,15.5 L9,15.5 L9,16.5 L6,16.5 L6,18 Z"
-                                      Fill="{StaticResource MenuItemIconForeground}"/>
+                                      Fill="{StaticResource MenuItemIconForeground}"
+                                      ToolTip="Download arrow"/>
                                 <Path Data="M21,8 L18,10 L18,8.5 L15,8.5 L15,7.5 L18,7.5 L18,6 Z"
-                                      Fill="{StaticResource MenuItemIconForeground}"/>
+                                      Fill="{StaticResource MenuItemIconForeground}"
+                                      ToolTip="Upload arrow"/>
                             </Canvas>
                         </Viewbox>
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator/>
+                <Separator ToolTip="Separator"/>
                 <MenuItem Header="_Exit" Click="ExitMenuItem_Click"
                           ToolTip="Close the application">
                     <MenuItem.Icon>
-                        <Image Source="pack://application:,,,/images/exit.png" Style="{StaticResource MenuItemIconStyle}"/>
+                        <Image Source="pack://application:,,,/images/exit.png" Style="{StaticResource MenuItemIconStyle}"
+                               ToolTip="Exit application icon"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
@@ -57,7 +61,8 @@
                 <MenuItem Header="_About" Click="AboutMenuItem_Click"
                           ToolTip="View application version and credits">
                     <MenuItem.Icon>
-                        <Image Source="pack://application:,,,/images/about.png" Style="{StaticResource MenuItemIconStyle}"/>
+                        <Image Source="pack://application:,,,/images/about.png" Style="{StaticResource MenuItemIconStyle}"
+                               ToolTip="About window icon"/>
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
@@ -105,7 +110,7 @@
         </Grid>
 
         <!-- 3: System Dropdown -->
-        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+        <StackPanel Grid.Row="1" Margin="0,0,0,10" ToolTip="System selection area">
             <TextBlock Text="Select System:" Style="{StaticResource SectionHeadingStyle}"
                        ToolTip="Choose the game system to download covers for"/>
             <ComboBox ItemsSource="{Binding Systems}" 
@@ -116,7 +121,7 @@
         </StackPanel>
 
         <!-- 4, 5, 6: Buttons -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10" ToolTip="Action buttons">
             <Button Content="Prepare for Download" Command="{Binding PrepareCommand}"
                     Width="150" Style="{StaticResource ActionButtonStyle}"
                     ToolTip="Scan ROM folder and match with available covers on GitHub"/>
@@ -129,7 +134,7 @@
         </StackPanel>
 
         <!-- Progress Bar Section -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,10">
+        <StackPanel Grid.Row="3" Margin="0,0,0,10" ToolTip="Progress and status area">
             <!-- TextBlock for the Status/Clock -->
             <TextBlock Text="{Binding StatusMessage}" 
                         Style="{StaticResource StatusTextStyle}"

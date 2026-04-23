@@ -23,8 +23,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly List<CoverDownloadItem> _itemsToDownload = new();
 
     // Commands
-    public RelayCommand? BrowseRomCommand { get; }
-    public RelayCommand? BrowseCoverCommand { get; }
+    public RelayCommand BrowseRomCommand { get; }
+    public RelayCommand BrowseCoverCommand { get; }
     public RelayCommand PrepareCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -86,17 +86,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         };
         _countdownTimer.Tick += OnTimerTick;
 
-        try
-        {
-            // Init Commands
-            BrowseRomCommand = new RelayCommand(_ => SelectFolder(path => { RomFolderPath = path; }));
-            BrowseCoverCommand = new RelayCommand(_ => SelectFolder(path => { CoverFolderPath = path; }));
-        }
-        catch (Exception ex)
-        {
-            Log($"[MainViewModel] Failed to initialize browse commands: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Constructor failed to initialize browse commands.");
-        }
+        // Init Commands
+        BrowseRomCommand = new RelayCommand(_ => SelectFolder(path => { RomFolderPath = path; }));
+        BrowseCoverCommand = new RelayCommand(_ => SelectFolder(path => { CoverFolderPath = path; }));
 
         PrepareCommand = new RelayCommand(async void (o) =>
         {
@@ -128,7 +120,15 @@ public class MainViewModel : ViewModelBase, IDisposable
         );
 
         // Load Systems on Startup
-        LoadSystemsAsync();
+        try
+        {
+            _ = LoadSystemsAsync();
+        }
+        catch (Exception ex)
+        {
+            Log($"[LoadSystemsAsync] Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems from GitHub.");
+        }
 
         // Check for updates
         _ = UpdateCheckerService.CheckForUpdateAsync();
@@ -325,7 +325,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async void LoadSystemsAsync()
+    private async Task LoadSystemsAsync()
     {
         try
         {
@@ -620,8 +620,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void CancelOperation()
     {
-        // Check if there's an active token source
-        if (_cts == null)
+        // Capture the token source locally to avoid TOCTOU race with DownloadCoversAsync
+        var cts = System.Threading.Interlocked.CompareExchange(ref _cts, null, null);
+        if (cts == null)
         {
             Log("No active operation to cancel.");
             return;
@@ -629,9 +630,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            if (!_cts.IsCancellationRequested)
+            if (!cts.IsCancellationRequested)
             {
-                _cts.Cancel();
+                cts.Cancel();
                 Log("Cancellation requested...");
             }
         }
@@ -650,14 +651,61 @@ public class MainViewModel : ViewModelBase, IDisposable
         // in its finally block. Doing it here causes race conditions.
     }
 
+    public void CancelAll()
+    {
+        try
+        {
+            _countdownTimer.Stop();
+
+            var cts = System.Threading.Interlocked.CompareExchange(ref _cts, null, null);
+            if (cts != null && !cts.IsCancellationRequested)
+            {
+                cts.Cancel();
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ignore
+        }
+        catch (Exception ex)
+        {
+            Log($"[CancelAll] Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Error cancelling all operations.");
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
 
         _disposed = true;
 
-        _cts?.Dispose();
-        _gitHubService.Dispose();
+        try
+        {
+            _countdownTimer.Stop();
+            _countdownTimer.Tick -= OnTimerTick;
+        }
+        catch { /* ignore */ }
+
+        try
+        {
+            _gitHubService.RateLimitHit -= OnRateLimitHit;
+        }
+        catch { /* ignore */ }
+
+        try
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
+        catch { /* ignore */ }
+
+        try
+        {
+            _gitHubService.Dispose();
+        }
+        catch { /* ignore */ }
+
         GC.SuppressFinalize(this);
     }
 

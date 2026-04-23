@@ -84,7 +84,11 @@ public class GitHubService : IDisposable
     {
         if (!string.IsNullOrWhiteSpace(token))
         {
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", token);
+            var scheme = token.StartsWith("ghp_", StringComparison.OrdinalIgnoreCase)
+                      || token.StartsWith("github_pat_", StringComparison.OrdinalIgnoreCase)
+                ? "Bearer"
+                : "token";
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(scheme, token);
         }
         else
         {
@@ -92,7 +96,7 @@ public class GitHubService : IDisposable
         }
     }
 
-    public async Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction)
+    public async Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default)
     {
         var systems = new List<SystemConfig>();
         const string context = "[GetAvailableSystemsAsync] ";
@@ -102,15 +106,15 @@ public class GitHubService : IDisposable
             logAction("Fetching .gitmodules...");
             const string gitmodulesUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{MainRepoBranch}/.gitmodules";
 
-            await _rateLimiter.WaitForSlotAsync();
-            var gitmodulesContent = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(gitmodulesUrl));
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            var gitmodulesContent = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(gitmodulesUrl, cancellationToken), cancellationToken: cancellationToken);
             var repoNameMap = ParseGitmodules(gitmodulesContent);
 
             logAction("Fetching main repository tree...");
             const string mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{MainRepoBranch}?recursive=1";
 
-            await _rateLimiter.WaitForSlotAsync();
-            var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl));
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), cancellationToken: cancellationToken);
             var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
 
             if (tree?.Tree != null)
@@ -134,7 +138,7 @@ public class GitHubService : IDisposable
         return systems;
     }
 
-    public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction)
+    public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction, CancellationToken cancellationToken = default)
     {
         var branches = new[] { "main", "master" };
         var context = $"[GetSystemFilesAsync] System: {system.SystemName} ";
@@ -145,16 +149,16 @@ public class GitHubService : IDisposable
             {
                 // Step 1: Try the recursive approach (efficient for small/medium repos)
                 var apiUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}?recursive=1";
-                await _rateLimiter.WaitForSlotAsync();
+                await _rateLimiter.WaitForSlotAsync(cancellationToken);
 
-                var response = await RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl));
+                using var response = await RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl, cancellationToken), cancellationToken: cancellationToken);
 
                 switch (response.StatusCode)
                 {
                     // Handle the 500 error specifically for large repos (like PS2)
                     case HttpStatusCode.InternalServerError:
                         logAction($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
-                        return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction);
+                        return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction, cancellationToken);
                     case HttpStatusCode.NotFound:
                         continue; // Try next branch
                 }
@@ -176,8 +180,8 @@ public class GitHubService : IDisposable
             {
                 var errorMsg = $"{context}Error fetching files: {ex.Message}";
                 logAction(errorMsg);
-                await BugReportService.LogErrorAsync(ex, $"{context}Exception while fetching system files.");
-                break;
+                await BugReportService.LogErrorAsync(ex, $"{context}Exception while fetching system files on branch '{branch}', trying next branch.");
+                continue;
             }
         }
 
@@ -188,14 +192,14 @@ public class GitHubService : IDisposable
     /// Fallback for large repositories where recursive calls fail with 500 errors.
     /// Fetches the root, finds the target folder SHA, and fetches that folder's tree specifically.
     /// </summary>
-    private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, Action<string> logAction)
+    private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, Action<string> logAction, CancellationToken cancellationToken = default)
     {
         try
         {
             // 1. Get root tree (non-recursive)
             var rootUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}";
-            await _rateLimiter.WaitForSlotAsync();
-            var rootJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl));
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            var rootJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl, cancellationToken), cancellationToken: cancellationToken);
             var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
 
             // 2. Find the "Named_Boxarts" folder entry
@@ -207,8 +211,8 @@ public class GitHubService : IDisposable
                 // 3. Fetch the tree for that specific folder (non-recursive is usually enough)
                 // We use the SHA of the folder to get its contents directly
                 var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{folderEntry.Sha}";
-                await _rateLimiter.WaitForSlotAsync();
-                var folderJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl));
+                await _rateLimiter.WaitForSlotAsync(cancellationToken);
+                var folderJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl, cancellationToken), cancellationToken: cancellationToken);
                 var folderTree = JsonSerializer.Deserialize<GitHubTree>(folderJson, _jsonOptions);
 
                 if (folderTree?.Tree != null)
@@ -253,9 +257,9 @@ public class GitHubService : IDisposable
 
                 var data = await _httpClient.GetByteArrayAsync(url, cancellationToken);
 
-                if (data == null || data.Length == 0)
+                if (data.Length == 0)
                 {
-                    throw new InvalidOperationException($"Downloaded data is null or empty from URL: {url}");
+                    throw new InvalidOperationException($"Downloaded data is empty from URL: {url}");
                 }
 
                 // Success: Reset consecutive error count (closed circuit)
@@ -321,7 +325,7 @@ public class GitHubService : IDisposable
         return Task.CompletedTask;
     }
 
-    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3)
+    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3, CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
@@ -332,7 +336,7 @@ public class GitHubService : IDisposable
             catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
-                await Task.Delay(delay);
+                await Task.Delay(delay, cancellationToken);
             }
         }
 
@@ -403,7 +407,6 @@ public class GitHubService : IDisposable
         _disposed = true;
 
         _httpClient.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private bool _disposed;

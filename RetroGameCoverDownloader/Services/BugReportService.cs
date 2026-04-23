@@ -28,35 +28,64 @@ public static class BugReportService
         };
     }
 
-    private static string FormatErrorMessage(Exception ex, string contextMessage)
+    private static string GetEnvironmentDetails()
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
         var osDescription = RuntimeInformation.OSDescription;
-        var osArchitecture = RuntimeInformation.OSArchitecture.ToString();
-        var frameworkDescription = RuntimeInformation.FrameworkDescription;
+        var processArchitecture = RuntimeInformation.ProcessArchitecture.ToString();
+        var osBitness = Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit";
+        var processBitness = Environment.Is64BitProcess ? "64-bit" : "32-bit";
+        var processorCount = Environment.ProcessorCount.ToString(CultureInfo.InvariantCulture);
+        var baseDirectory = AppContext.BaseDirectory;
+        var tempPath = Path.GetTempPath();
 
-        var fullErrorMessage = new StringBuilder();
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Application: {ApplicationName}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Version: {version}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Context: {contextMessage}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"OS: {osDescription}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"OS Architecture: {osArchitecture}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Framework: {frameworkDescription}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Exception Type: {ex.GetType().Name}");
-        fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Exception Message: {ex.Message}");
-        fullErrorMessage.AppendLine("\n--- Stack Trace ---");
-        fullErrorMessage.AppendLine(ex.StackTrace);
+        var sb = new StringBuilder();
+        sb.AppendLine("=== Environment Details ===");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Application Name: {ApplicationName}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Application Version: {version}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"OS Version: {osDescription}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Architecture: {processArchitecture}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Bitness: {processBitness} (Process), {osBitness} (OS)");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Windows Version: {osDescription}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Processor Count: {processorCount}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Base Directory: {baseDirectory}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Temp Path: {tempPath}");
+        return sb.ToString();
+    }
+
+    private static string GetExceptionDetails(Exception ex)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("=== Exception Details ===");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Type: {ex.GetType().FullName}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Message: {ex.Message}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Source: {ex.Source ?? "Unknown"}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"StackTrace: {ex.StackTrace ?? "No stack trace available."}");
+
         if (ex.InnerException != null)
         {
-            fullErrorMessage.AppendLine("\n--- Inner Exception ---");
-            fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Type: {ex.InnerException.GetType().Name}");
-            fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Message: {ex.InnerException.Message}");
-            fullErrorMessage.AppendLine(CultureInfo.InvariantCulture, $"Stack Trace:\n{ex.InnerException.StackTrace}");
+            sb.AppendLine();
+            sb.AppendLine("--- Inner Exception ---");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Type: {ex.InnerException.GetType().FullName}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Message: {ex.InnerException.Message}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Source: {ex.InnerException.Source ?? "Unknown"}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"StackTrace: {ex.InnerException.StackTrace ?? "No stack trace available."}");
         }
 
-        fullErrorMessage.AppendLine("--------------------------------------------------\n");
-        return fullErrorMessage.ToString();
+        return sb.ToString();
+    }
+
+    private static string FormatErrorMessage(Exception ex, string contextMessage)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(GetEnvironmentDetails());
+        sb.AppendLine();
+        sb.AppendLine("=== Error Details ===");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Error message: {contextMessage}");
+        sb.AppendLine();
+        sb.AppendLine(GetExceptionDetails(ex));
+        return sb.ToString();
     }
 
     public static void LogErrorSync(Exception? ex, string? contextMessage = null)
@@ -90,14 +119,13 @@ public static class BugReportService
         // Synchronously wait for the API call to ensure it completes before process termination
         try
         {
-            SendLogToApiAsync(logContent).GetAwaiter().GetResult();
+            SendLogToApiAsync(ex, contextMessage).GetAwaiter().GetResult();
         }
         catch (Exception apiEx)
         {
             WriteToCriticalLog(apiEx, "Exception in synchronous SendLogToApiAsync from LogErrorSync.");
         }
     }
-
 
     public static async Task LogErrorAsync(Exception? ex, string? contextMessage = null)
     {
@@ -127,18 +155,26 @@ public static class BugReportService
             WriteToCriticalLog(writeEx, $"Failed to write main error to '{ErrorLogFilePath}'. Original error: {ex.Message}");
         }
 
-        await SendLogToApiAsync(logContent);
+        await SendLogToApiAsync(ex, contextMessage);
     }
 
-    private static async Task<bool> SendLogToApiAsync(string logContent)
+    private static async Task<bool> SendLogToApiAsync(Exception ex, string contextMessage)
     {
         try
         {
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+            var message = FormatErrorMessage(ex, contextMessage);
+
             var payload = new
             {
-                message = logContent,
-                applicationName = ApplicationName
+                message = message,
+                applicationName = ApplicationName,
+                version = version,
+                stackTrace = ex.StackTrace,
+                userInfo = contextMessage,
+                environment = RuntimeInformation.OSDescription
             };
+
             var jsonPayload = JsonSerializer.Serialize(payload);
             var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
@@ -146,7 +182,7 @@ public static class BugReportService
             request.Headers.Add("X-API-KEY", ApiKey);
             request.Content = httpContent;
 
-            using var response = await HttpClientInstance.SendAsync(request);
+            using var response = await HttpClientInstance.SendAsync(request).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
@@ -154,7 +190,7 @@ public static class BugReportService
             }
             else
             {
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var responseContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 WriteToCriticalLog(
                     new HttpRequestException($"API request failed with status code {response.StatusCode}. Response: {responseContent}"),
                     "Error sending log to API.");

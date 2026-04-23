@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http;
 using System.Reflection;
@@ -108,6 +108,6 @@ public static partial class UpdateCheckerService
             or HttpRequestException { InnerException: System.Net.Sockets.SocketException };
     }
 
-    [GeneratedRegex(@"\d+\.\d+\.\d+")]
+    [GeneratedRegex(@"\d+\.\d+\.\d+(?:\.\d+)?")]
     private static partial Regex MyRegex();
 }

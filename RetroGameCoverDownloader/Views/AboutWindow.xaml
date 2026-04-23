@@ -14,13 +14,13 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="10" HorizontalAlignment="Center" Orientation="Horizontal">
-            <Image Width="128" Height="128" Source="pack://application:,,,/images/logo.png"
+        <StackPanel Grid.Row="0" Margin="10" HorizontalAlignment="Center" Orientation="Horizontal" ToolTip="Application logo area">
+            <Image Style="{StaticResource AppLogoStyle}" Source="pack://application:,,,/images/logo.png"
                    ToolTip="Retro Game Cover Downloader logo"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="20">
-            <TextBlock FontWeight="Bold" FontSize="18" Text="Retro Game Cover Downloader"
+        <StackPanel Grid.Row="1" Margin="20" ToolTip="Application details">
+            <TextBlock Style="{StaticResource AppTitleStyle}" Text="Retro Game Cover Downloader"
                        ToolTip="Application name"/>
             <TextBlock x:Name="DescriptionTextBlock" TextWrapping="Wrap"
                        Text="A utility for downloading game cover art from libretro-thumbnails GitHub repositories for your ROM collection."
@@ -40,7 +40,7 @@
             </TextBlock>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Margin="10" HorizontalAlignment="Center" Orientation="Horizontal">
+        <StackPanel Grid.Row="2" Margin="10" HorizontalAlignment="Center" Orientation="Horizontal" ToolTip="Dialog action buttons">
             <Button Width="100" Margin="10,0,0,0" Click="CloseButton_Click" Content="Close"
                     ToolTip="Close the About window"/>
         </StackPanel>

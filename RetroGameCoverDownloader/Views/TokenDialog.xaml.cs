@@ -36,10 +36,11 @@ public partial class TokenDialog
 
     private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
+        e.Handled = true;
+
         try
         {
             Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
-            e.Handled = true;
         }
         catch (Exception ex)
         {

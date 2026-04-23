@@ -1,3 +1,5 @@
+using System.Xml.Serialization;
+
 namespace RetroGameCoverDownloader.Models;
 
 public class AppSettings
@@ -9,5 +11,10 @@ public class AppSettings
     public string? ProxyHost { get; set; }
     public int ProxyPort { get; set; }
     public string? ProxyUsername { get; set; }
+
+    [XmlIgnore]
     public string? ProxyPassword { get; set; }
+
+    [XmlElement("ProxyPassword")]
+    public string? ProxyPasswordEncrypted { get; set; }
 }

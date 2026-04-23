@@ -77,7 +77,7 @@ RetroGameCoverDownloader.exe "C:\Covers" "C:\ROMs"
 ## 🛠️ Technical Details
 
 ### Architecture
-- **MVVM Pattern**: Clean separation of concerns with ViewModels
+- **MVVM Pattern**: Main window uses ViewModels; dialogs use code-behind for simplicity
 - **Async/Await**: Fully asynchronous operations for UI responsiveness
 - **Rate Limiting**: Custom `RateLimiter` service with event notifications
 - **Error Handling**: Comprehensive logging and bug reporting

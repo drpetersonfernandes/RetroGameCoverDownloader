@@ -63,10 +63,6 @@ public class RateLimiter
                 _ = BugReportService.LogErrorAsync(ex, $"{context}Exception in OnRateLimitHit event handler.");
             }
 
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Rate limit reached. Waiting {timeToWait.TotalSeconds:F0}s...");
-            Console.ResetColor();
-
             await Task.Delay(timeToWait, cancellationToken);
         }
 
