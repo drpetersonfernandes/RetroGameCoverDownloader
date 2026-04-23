@@ -38,4 +38,14 @@ public class AppSettingsTests
         Assert.Equal("user", settings.ProxyUsername);
         Assert.Equal("pass", settings.ProxyPassword);
     }
+
+    [Theory]
+    [InlineData(false, null, 0, "disabled")]
+    [InlineData(true, "proxy.example.com", 8080, "enabled (http://proxy.example.com:8080)")]
+    [InlineData(true, "127.0.0.1", 1080, "enabled (http://127.0.0.1:1080)")]
+    public void FormatProxyStatus_ReturnsExpectedString(bool useProxy, string? host, int port, string expected)
+    {
+        var result = AppSettings.FormatProxyStatus(useProxy, host, port);
+        Assert.Equal(expected, result);
+    }
 }

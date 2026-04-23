@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using RetroGameCoverDownloader.Helpers;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -14,7 +14,7 @@ public static class BugReportService
     private const string BugReportApiUrl = "https://www.purelogiccode.com/bugreport/api/send-bug-report";
 
     private const string ApplicationName = "RetroGameCoverDownloader";
-    private static readonly HttpClient HttpClientInstance;
+    internal static HttpClient HttpClientInstance { get; set; }
 
     private static readonly string BaseDirectory = AppContext.BaseDirectory;
     private static readonly string ErrorLogFilePath = Path.Combine(BaseDirectory, "error.log");
@@ -30,7 +30,7 @@ public static class BugReportService
 
     private static string GetEnvironmentDetails()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+        var version = AppInfo.VersionString;
         var osDescription = RuntimeInformation.OSDescription;
         var processArchitecture = RuntimeInformation.ProcessArchitecture.ToString();
         var osBitness = Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit";
@@ -162,7 +162,7 @@ public static class BugReportService
     {
         try
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+            var version = AppInfo.VersionString;
             var message = FormatErrorMessage(ex, contextMessage);
 
             var payload = new
@@ -208,7 +208,7 @@ public static class BugReportService
     {
         try
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+            var version = AppInfo.VersionString;
             var criticalContent = new StringBuilder();
             criticalContent.AppendLine("--- CRITICAL LOGGING ERROR ---");
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");

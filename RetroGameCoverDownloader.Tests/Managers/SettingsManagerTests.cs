@@ -10,42 +10,72 @@ public class SettingsManagerTests
     [Fact]
     public void LoadSettings_FileDoesNotExist_ReturnsDefaultSettings()
     {
-        var settings = SettingsManager.LoadSettings();
+        var originalPath = SettingsManager.SettingsFilePath;
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
 
-        Assert.NotNull(settings);
-        Assert.Null(settings.GitHubToken);
-        Assert.False(settings.UseProxy);
+        try
+        {
+            SettingsManager.SettingsFilePath = tempPath;
+            // Ensure the file does not exist
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+
+            var settings = SettingsManager.LoadSettings();
+
+            Assert.NotNull(settings);
+            Assert.Null(settings.GitHubToken);
+            Assert.False(settings.UseProxy);
+        }
+        finally
+        {
+            SettingsManager.SettingsFilePath = originalPath;
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
     }
 
     [Fact]
     public void SaveSettings_AndLoadSettings_RoundTrip()
     {
-        var originalSettings = new AppSettings
+        var originalPath = SettingsManager.SettingsFilePath;
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
+
+        try
         {
-            GitHubToken = "test_token_123",
-            UseProxy = true,
-            ProxyHost = "localhost",
-            ProxyPort = 8080,
-            ProxyUsername = "user",
-            ProxyPassword = "secret"
-        };
+            SettingsManager.SettingsFilePath = tempPath;
 
-        SettingsManager.SaveSettings(originalSettings);
+            var originalSettings = new AppSettings
+            {
+                GitHubToken = "test_token_123",
+                UseProxy = true,
+                ProxyHost = "localhost",
+                ProxyPort = 8080,
+                ProxyUsername = "user",
+                ProxyPassword = "secret"
+            };
 
-        var loadedSettings = SettingsManager.LoadSettings();
+            SettingsManager.SaveSettings(originalSettings);
 
-        Assert.Equal(originalSettings.GitHubToken, loadedSettings.GitHubToken);
-        Assert.Equal(originalSettings.UseProxy, loadedSettings.UseProxy);
-        Assert.Equal(originalSettings.ProxyHost, loadedSettings.ProxyHost);
-        Assert.Equal(originalSettings.ProxyPort, loadedSettings.ProxyPort);
-        Assert.Equal(originalSettings.ProxyUsername, loadedSettings.ProxyUsername);
-        Assert.Equal(originalSettings.ProxyPassword, loadedSettings.ProxyPassword);
+            var loadedSettings = SettingsManager.LoadSettings();
 
-        // Cleanup
-        var settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.xml");
-        if (File.Exists(settingsPath))
+            Assert.Equal(originalSettings.GitHubToken, loadedSettings.GitHubToken);
+            Assert.Equal(originalSettings.UseProxy, loadedSettings.UseProxy);
+            Assert.Equal(originalSettings.ProxyHost, loadedSettings.ProxyHost);
+            Assert.Equal(originalSettings.ProxyPort, loadedSettings.ProxyPort);
+            Assert.Equal(originalSettings.ProxyUsername, loadedSettings.ProxyUsername);
+            Assert.Equal(originalSettings.ProxyPassword, loadedSettings.ProxyPassword);
+        }
+        finally
         {
-            File.Delete(settingsPath);
+            SettingsManager.SettingsFilePath = originalPath;
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
         }
     }
 }

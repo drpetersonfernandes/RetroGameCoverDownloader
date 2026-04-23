@@ -6,7 +6,7 @@ using RetroGameCoverDownloader.Models;
 
 namespace RetroGameCoverDownloader.Services;
 
-public class GitHubService : IDisposable
+public class GitHubService : IGitHubService
 {
     private readonly HttpClient _httpClient;
     private readonly RateLimiter _rateLimiter;
@@ -25,6 +25,13 @@ public class GitHubService : IDisposable
     {
         add => _rateLimiter.OnRateLimitHit += value;
         remove => _rateLimiter.OnRateLimitHit -= value;
+    }
+
+    // Internal constructor for testability (allows injecting a mock HttpClient)
+    internal GitHubService(HttpClient httpClient, RateLimiter? rateLimiter = null)
+    {
+        _httpClient = httpClient;
+        _rateLimiter = rateLimiter ?? new RateLimiter(false);
     }
 
     public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null)

@@ -121,7 +121,7 @@ public partial class MainWindow
                         dialog.ProxyUsername,
                         dialog.ProxyPassword);
 
-                    var proxyStatus = dialog.UseProxy ? $"enabled (http://{dialog.ProxyHost}:{dialog.ProxyPort})" : "disabled";
+                    var proxyStatus = Models.AppSettings.FormatProxyStatus(dialog.UseProxy, dialog.ProxyHost, dialog.ProxyPort);
                     MessageBox.Show($"Proxy settings saved and applied. Proxy: {proxyStatus}",
                         "Proxy Settings", MessageBoxButton.OK, MessageBoxImage.Information);
                 }

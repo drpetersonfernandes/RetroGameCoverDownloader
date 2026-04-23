@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
+using RetroGameCoverDownloader.Helpers;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.Services;
@@ -44,8 +44,7 @@ public static partial class UpdateCheckerService
             if (!m.Success) return;
 
             var latest = Version.Parse(m.Value);
-            var current = Assembly.GetExecutingAssembly().GetName().Version
-                          ?? new Version(0, 0, 0, 0);
+            var current = AppInfo.Version;
 
             if (latest <= current) return; // up-to-date
 

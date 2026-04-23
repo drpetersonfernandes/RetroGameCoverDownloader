@@ -49,6 +49,8 @@ public partial class ProxySettingsDialog
     {
         try
         {
+            int parsedPort = 0;
+
             // Validate inputs if proxy is enabled
             if (UseProxyCheckBox.IsChecked == true)
             {
@@ -68,7 +70,7 @@ public partial class ProxySettingsDialog
                     return;
                 }
 
-                if (!int.TryParse(ProxyPortBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var port) || port <= 0 || port > 65535)
+                if (!int.TryParse(ProxyPortBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedPort) || parsedPort <= 0 || parsedPort > 65535)
                 {
                     MessageBox.Show("Please enter a valid proxy port (1-65535).", "Validation Error",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -80,7 +82,7 @@ public partial class ProxySettingsDialog
             // Set properties
             UseProxy = UseProxyCheckBox.IsChecked == true;
             ProxyHost = UseProxy ? ProxyHostBox.Text.Trim() : null;
-            ProxyPort = UseProxy && int.TryParse(ProxyPortBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var p) ? p : 0;
+            ProxyPort = UseProxy ? parsedPort : 0;
             ProxyUsername = UseProxy && !string.IsNullOrWhiteSpace(ProxyUsernameBox.Text)
                 ? ProxyUsernameBox.Text.Trim()
                 : null;

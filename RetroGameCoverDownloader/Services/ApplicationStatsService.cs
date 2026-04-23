@@ -1,8 +1,8 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using RetroGameCoverDownloader.Helpers;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -30,7 +30,7 @@ public static class ApplicationStatsService
     {
         try
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
+            var version = AppInfo.VersionString;
 
             var payload = new
             {

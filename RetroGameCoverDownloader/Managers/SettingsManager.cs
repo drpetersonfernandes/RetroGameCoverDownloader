@@ -10,7 +10,7 @@ namespace RetroGameCoverDownloader.Managers;
 
 public static class SettingsManager
 {
-    private static readonly string SettingsFilePath = Path.Combine(
+    internal static string SettingsFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RetroGameCoverDownloader",
         "settings.xml");
@@ -90,6 +90,7 @@ public static class SettingsManager
         {
             Console.WriteLine($"{context}Error: Could not save settings to {SettingsFilePath}. Error: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {SettingsFilePath}.");
+            throw;
         }
     }
 

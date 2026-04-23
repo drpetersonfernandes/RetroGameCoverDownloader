@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Navigation;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Services;
 using MessageBox = System.Windows.MessageBox;
 
@@ -13,7 +13,7 @@ public partial class AboutWindow
     {
         InitializeComponent();
 
-        AppVersionTextBlock.Text = $"Version: {GetApplicationVersion()}";
+        AppVersionTextBlock.Text = $"Version: {AppInfo.VersionString}";
         DescriptionTextBlock.Text = "A utility for downloading game cover art from libretro-thumbnails GitHub repositories for your ROM collection.";
     }
 
@@ -46,9 +46,4 @@ public partial class AboutWindow
         e.Handled = true;
     }
 
-    private static string GetApplicationVersion()
-    {
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        return version?.ToString() ?? "Unknown";
-    }
 }

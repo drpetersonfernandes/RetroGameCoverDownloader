@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Windows.Input;
 using System.Windows.Threading;
 using RetroGameCoverDownloader.Commands;
@@ -12,7 +13,7 @@ namespace RetroGameCoverDownloader.ViewModels;
 
 public class MainViewModel : ViewModelBase, IDisposable
 {
-    private GitHubService _gitHubService;
+    private IGitHubService _gitHubService;
     private CancellationTokenSource? _cts;
     private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
     private TimeSpan _remainingWaitTime;
@@ -20,7 +21,8 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     // Data
     public ObservableCollection<SystemConfig> Systems { get; } = new();
-    private readonly List<CoverDownloadItem> _itemsToDownload = new();
+    internal readonly List<CoverDownloadItem> _itemsToDownload = new();
+    private readonly StringBuilder _logBuilder = new();
 
     // Commands
     public RelayCommand BrowseRomCommand { get; }
@@ -36,31 +38,33 @@ public class MainViewModel : ViewModelBase, IDisposable
         set => SetField(ref field, value);
     } = "Ready";
 
-    public MainViewModel()
+    public MainViewModel() : this(LoadSettingsSafe(), null, suppressStartup: false) { }
+
+    private static AppSettings LoadSettingsSafe()
     {
-        // Load Settings
-        AppSettings settings;
         try
         {
-            settings = SettingsManager.LoadSettings();
+            return SettingsManager.LoadSettings();
         }
         catch (Exception ex)
         {
-            settings = new AppSettings();
-            Log($"[MainViewModel] Failed to load settings: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Constructor failed to load settings.");
+            return new AppSettings();
         }
+    }
 
-        // Token Check Logic
-        if (string.IsNullOrWhiteSpace(settings.GitHubToken))
-        {
-            // In a real app, you might open a Dialog Window here.
-            // For simplicity, we assume the View handles the initial prompt or we just init service without token.
-        }
-
-        // Initialize GitHubService with proxy settings
+    internal MainViewModel(AppSettings settings, IGitHubService? gitHubService, bool suppressStartup)
+    {
         _currentToken = settings.GitHubToken;
-        _gitHubService = new GitHubService(
+
+        // Initialize the timer first so Log is safe
+        _countdownTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _countdownTimer.Tick += OnTimerTick;
+
+        _gitHubService = gitHubService ?? CreateGitHubService(
             settings.GitHubToken,
             settings.UseProxy,
             settings.ProxyHost,
@@ -70,7 +74,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            // 2. Subscribe to the Rate Limit event
+            // Subscribe to the Rate Limit event
             _gitHubService.RateLimitHit += OnRateLimitHit;
         }
         catch (Exception ex)
@@ -78,13 +82,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             Log($"[MainViewModel] Failed to subscribe to rate limit events: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Constructor failed to subscribe to rate limit events.");
         }
-
-        // 3. Initialize the timer
-        _countdownTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _countdownTimer.Tick += OnTimerTick;
 
         // Init Commands
         BrowseRomCommand = new RelayCommand(_ => SelectFolder(path => { RomFolderPath = path; }));
@@ -119,19 +116,22 @@ public class MainViewModel : ViewModelBase, IDisposable
             _ => IsBusy && _cts != null // Add null check to disable button sooner
         );
 
-        // Load Systems on Startup
-        try
+        if (!suppressStartup)
         {
-            _ = LoadSystemsAsync();
-        }
-        catch (Exception ex)
-        {
-            Log($"[LoadSystemsAsync] Error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems from GitHub.");
-        }
+            // Load Systems on Startup
+            try
+            {
+                _ = LoadSystemsAsync();
+            }
+            catch (Exception ex)
+            {
+                Log($"[LoadSystemsAsync] Error: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems from GitHub.");
+            }
 
-        // Check for updates
-        _ = UpdateCheckerService.CheckForUpdateAsync();
+            // Check for updates
+            _ = UpdateCheckerService.CheckForUpdateAsync();
+        }
     }
 
     // 5. Handle the timer tick
@@ -169,7 +169,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             var settings = SettingsManager.LoadSettings();
 
             // Create new service before disposing old one to avoid leaving _gitHubService in a disposed state
-            var newService = new GitHubService(
+            var newService = CreateGitHubService(
                 token,
                 settings.UseProxy,
                 settings.ProxyHost,
@@ -203,7 +203,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             // Create new service before disposing old one to avoid leaving _gitHubService in a disposed state
-            var newService = new GitHubService(
+            var newService = CreateGitHubService(
                 _currentToken,
                 useProxy,
                 proxyHost,
@@ -219,7 +219,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             _gitHubService = newService;
             _gitHubService.RateLimitHit += OnRateLimitHit;
 
-            var proxyStatus = useProxy ? $"enabled (http://{proxyHost}:{proxyPort})" : "disabled";
+            var proxyStatus = AppSettings.FormatProxyStatus(useProxy, proxyHost, proxyPort);
             Log($"[MainViewModel] Proxy settings updated. Proxy: {proxyStatus}");
         }
         catch (Exception ex)
@@ -237,7 +237,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             _remainingWaitTime = waitTime;
 
             // Ensure we update UI on the UI thread
-            Application.Current.Dispatcher.Invoke(() =>
+            InvokeOnDispatcher(() =>
             {
                 StatusMessage = $"Rate limit reached. Resuming in {_remainingWaitTime.TotalSeconds:F0} seconds...";
                 _countdownTimer.Start();
@@ -280,8 +280,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         get;
         set
         {
-            SetField(ref field, value);
-            CommandManager.InvalidateRequerySuggested();
+            if (SetField(ref field, value))
+                InvalidateCommands();
         }
     }
 
@@ -302,15 +302,24 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            LogText += $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+            _logBuilder.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
 
             // Cap log size to prevent unbounded memory growth
             const int maxLogLength = 100_000;
-            if (LogText.Length > maxLogLength)
+            if (_logBuilder.Length > maxLogLength)
             {
-                LogText = LogText[^maxLogLength..];
-                LogText = LogText.Substring(LogText.IndexOf(Environment.NewLine, StringComparison.Ordinal) + Environment.NewLine.Length);
+                var text = _logBuilder.ToString();
+                text = text[^maxLogLength..];
+                var firstNewLine = text.IndexOf(Environment.NewLine, StringComparison.Ordinal);
+                if (firstNewLine >= 0)
+                {
+                    text = text.Substring(firstNewLine + Environment.NewLine.Length);
+                }
+                _logBuilder.Clear();
+                _logBuilder.Append(text);
             }
+
+            LogText = _logBuilder.ToString();
         }
         catch (Exception ex)
         {
@@ -336,7 +345,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 var systems = await Task.Run(() => _gitHubService.GetAvailableSystemsAsync(Log));
 
-                Application.Current.Dispatcher.Invoke(() =>
+                InvokeOnDispatcher(() =>
                 {
                     try
                     {
@@ -377,7 +386,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void SelectFolder(Action<string> setPath)
+    protected virtual void SelectFolder(Action<string> setPath)
     {
         try
         {
@@ -394,7 +403,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task PrepareDownloadAsync()
+    internal async Task PrepareDownloadAsync()
     {
         if (SelectedSystem == null) return;
 
@@ -407,7 +416,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             await Task.Run(async () =>
             {
                 // 1. Validate folders exist before reading
-                if (!Directory.Exists(RomFolderPath) || !Directory.Exists(CoverFolderPath))
+                if (!DirectoryExists(RomFolderPath) || !DirectoryExists(CoverFolderPath))
                 {
                     const string errorMsg = "ROM folder or Cover folder does not exist.";
                     Log($"[PrepareDownloadAsync] {errorMsg}");
@@ -416,13 +425,13 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 // 2. Scan ROMs
                 Log($"Scanning ROM folder: {RomFolderPath}");
-                var romFiles = Directory.GetFiles(RomFolderPath);
+                var romFiles = GetFiles(RomFolderPath);
                 var romNames = romFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Log($"Found {romNames.Count} ROMs.");
 
                 // 3. Scan Covers
                 Log($"Scanning Cover folder: {CoverFolderPath}");
-                var coverFiles = Directory.GetFiles(CoverFolderPath);
+                var coverFiles = GetFiles(CoverFolderPath);
                 var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Log($"Found {coverNames.Count} existing covers.");
 
@@ -499,7 +508,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 IsBusy = false;
                 _countdownTimer.Stop();
                 // Force command refresh to enable Download button
-                CommandManager.InvalidateRequerySuggested();
+                InvalidateCommands();
             }
             catch (Exception ex)
             {
@@ -509,7 +518,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task DownloadCoversAsync()
+    internal async Task DownloadCoversAsync()
     {
         IsBusy = true;
         _cts = new CancellationTokenSource();
@@ -555,17 +564,16 @@ public class MainViewModel : ViewModelBase, IDisposable
                 if (data != null)
                 {
                     // Check for disk space before writing
-                    var driveInfo = new DriveInfo(Path.GetPathRoot(CoverFolderPath) ?? throw new InvalidOperationException("Could not get root path of Cover folder"));
-                    if (driveInfo.AvailableFreeSpace < 10 * 1024 * 1024) // 10MB threshold
+                    if (GetAvailableFreeSpace(CoverFolderPath) < 10 * 1024 * 1024) // 10MB threshold
                     {
                         throw new IOException("Low disk space detected. Download aborted.");
                     }
 
                     var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
-                    await File.WriteAllBytesAsync(savePath, data, token);
+                    await WriteAllBytesAsync(savePath, data, token);
 
                     // Verify file was written
-                    if (!File.Exists(savePath))
+                    if (!FileExists(savePath))
                     {
                         throw new IOException($"File was not created at {savePath}");
                     }
@@ -697,6 +705,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             _cts?.Cancel();
             _cts?.Dispose();
+            _cts = null;
         }
         catch { /* ignore */ }
 
@@ -708,6 +717,21 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         GC.SuppressFinalize(this);
     }
+
+    protected virtual void InvokeOnDispatcher(Action action) => Application.Current.Dispatcher.Invoke(action);
+    protected virtual void InvalidateCommands() => CommandManager.InvalidateRequerySuggested();
+    protected virtual bool DirectoryExists(string path) => Directory.Exists(path);
+    protected virtual string[] GetFiles(string path) => Directory.GetFiles(path);
+    protected virtual Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken) => File.WriteAllBytesAsync(path, data, cancellationToken);
+    protected virtual bool FileExists(string path) => File.Exists(path);
+    protected virtual long GetAvailableFreeSpace(string path)
+    {
+        var root = Path.GetPathRoot(path) ?? throw new InvalidOperationException("Could not get root path of Cover folder");
+        return new DriveInfo(root).AvailableFreeSpace;
+    }
+
+    protected virtual IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
+        => new GitHubService(token, useProxy, proxyHost, proxyPort, proxyUsername, proxyPassword);
 
     private bool _disposed;
 }
