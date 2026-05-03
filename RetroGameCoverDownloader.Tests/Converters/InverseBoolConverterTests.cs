@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Windows.Data;
 using RetroGameCoverDownloader.Converters;
 using Xunit;
 
@@ -12,9 +11,9 @@ public class InverseBoolConverterTests
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void Convert_BoolValues_ReturnsInverse(bool input, bool expected)
+    public void ConvertBoolValuesReturnsInverse(bool input, bool expected)
     {
-        var result = _converter.Convert(input, typeof(bool), null!, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(input, typeof(bool), null, CultureInfo.InvariantCulture);
 
         Assert.Equal(expected, result);
     }
@@ -22,25 +21,25 @@ public class InverseBoolConverterTests
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void ConvertBack_BoolValues_ReturnsInverse(bool input, bool expected)
+    public void ConvertBackBoolValuesReturnsInverse(bool input, bool expected)
     {
-        var result = _converter.ConvertBack(input, typeof(bool), null!, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(input, typeof(bool), null, CultureInfo.InvariantCulture);
 
         Assert.Equal(expected, result);
     }
 
     [Fact]
-    public void Convert_NonBoolValue_ReturnsOriginalValue()
+    public void ConvertNonBoolValueReturnsOriginalValue()
     {
-        var result = _converter.Convert("hello", typeof(bool), null!, CultureInfo.InvariantCulture);
+        var result = _converter.Convert("hello", typeof(bool), null, CultureInfo.InvariantCulture);
 
         Assert.Equal("hello", result);
     }
 
     [Fact]
-    public void ConvertBack_NonBoolValue_ReturnsOriginalValue()
+    public void ConvertBackNonBoolValueReturnsOriginalValue()
     {
-        var result = _converter.ConvertBack(123, typeof(bool), null!, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(123, typeof(bool), null, CultureInfo.InvariantCulture);
 
         Assert.Equal(123, result);
     }

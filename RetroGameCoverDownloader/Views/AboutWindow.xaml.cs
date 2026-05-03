@@ -45,5 +45,4 @@ public partial class AboutWindow
         // Mark the event as handled
         e.Handled = true;
     }
-
 }

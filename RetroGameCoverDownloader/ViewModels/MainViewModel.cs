@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Input;
@@ -20,8 +21,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private string? _currentToken;
 
     // Data
-    public ObservableCollection<SystemConfig> Systems { get; } = new();
-    internal readonly List<CoverDownloadItem> _itemsToDownload = new();
+    public ObservableCollection<SystemConfig> Systems { get; } = [];
+    internal readonly List<CoverDownloadItem> ItemsToDownload = [];
     private readonly StringBuilder _logBuilder = new();
 
     // Commands
@@ -38,7 +39,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         set => SetField(ref field, value);
     } = "Ready";
 
-    public MainViewModel() : this(LoadSettingsSafe(), null, suppressStartup: false) { }
+    public MainViewModel() : this(LoadSettingsSafe(), null, false)
+    {
+    }
 
     private static AppSettings LoadSettingsSafe()
     {
@@ -110,7 +113,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 Log($"[DownloadCommand] Error: {ex.Message}");
                 _ = BugReportService.LogErrorAsync(ex, "[DownloadCommand] Unhandled exception in DownloadCommand execution.");
             }
-        }, _ => !IsBusy && _itemsToDownload.Count > 0);
+        }, _ => !IsBusy && ItemsToDownload.Count > 0);
         CancelCommand = new RelayCommand(
             _ => CancelOperation(),
             _ => IsBusy && _cts != null // Add null check to disable button sooner
@@ -302,7 +305,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            _logBuilder.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+            _logBuilder.AppendLine(CultureInfo.InvariantCulture, $"[{DateTime.Now:HH:mm:ss}] {message}");
 
             // Cap log size to prevent unbounded memory growth
             const int maxLogLength = 100_000;
@@ -315,6 +318,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 {
                     text = text.Substring(firstNewLine + Environment.NewLine.Length);
                 }
+
                 _logBuilder.Clear();
                 _logBuilder.Append(text);
             }
@@ -408,7 +412,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (SelectedSystem == null) return;
 
         IsBusy = true;
-        _itemsToDownload.Clear();
+        ItemsToDownload.Clear();
         Log("--- Starting Preparation ---");
 
         try
@@ -474,7 +478,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                         var encodedPath = string.Join("/", match.Path.Split('/').Select(Uri.EscapeDataString));
                         var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/{branch}/{encodedPath}";
 
-                        _itemsToDownload.Add(new CoverDownloadItem
+                        ItemsToDownload.Add(new CoverDownloadItem
                         {
                             GameName = missing,
                             TargetFilename = fileName,
@@ -483,7 +487,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     }
                 }
 
-                Log($"Matched {_itemsToDownload.Count} covers available for download.");
+                Log($"Matched {ItemsToDownload.Count} covers available for download.");
             }, CancellationToken.None);
         }
         catch (OperationCanceledException)
@@ -526,13 +530,13 @@ public class MainViewModel : ViewModelBase, IDisposable
         // Validate we have items to download
         var token = _cts.Token;
 
-        ProgressMax = _itemsToDownload.Count;
+        ProgressMax = ItemsToDownload.Count;
         ProgressValue = 0;
         var successCount = 0;
 
         Log("--- Starting Download ---");
 
-        if (_itemsToDownload.Count == 0)
+        if (ItemsToDownload.Count == 0)
         {
             Log("[DownloadCoversAsync] No items to download.");
             IsBusy = false;
@@ -541,7 +545,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            foreach (var item in _itemsToDownload)
+            foreach (var item in ItemsToDownload)
             {
                 if (token.IsCancellationRequested)
                 {
@@ -629,7 +633,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private void CancelOperation()
     {
         // Capture the token source locally to avoid TOCTOU race with DownloadCoversAsync
-        var cts = System.Threading.Interlocked.CompareExchange(ref _cts, null, null);
+        var cts = Interlocked.CompareExchange(ref _cts, null, null);
         if (cts == null)
         {
             Log("No active operation to cancel.");
@@ -665,8 +669,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             _countdownTimer.Stop();
 
-            var cts = System.Threading.Interlocked.CompareExchange(ref _cts, null, null);
-            if (cts != null && !cts.IsCancellationRequested)
+            var cts = Interlocked.CompareExchange(ref _cts, null, null);
+            if (cts is { IsCancellationRequested: false })
             {
                 cts.Cancel();
             }
@@ -693,13 +697,19 @@ public class MainViewModel : ViewModelBase, IDisposable
             _countdownTimer.Stop();
             _countdownTimer.Tick -= OnTimerTick;
         }
-        catch { /* ignore */ }
+        catch
+        {
+            /* ignore */
+        }
 
         try
         {
             _gitHubService.RateLimitHit -= OnRateLimitHit;
         }
-        catch { /* ignore */ }
+        catch
+        {
+            /* ignore */
+        }
 
         try
         {
@@ -707,23 +717,53 @@ public class MainViewModel : ViewModelBase, IDisposable
             _cts?.Dispose();
             _cts = null;
         }
-        catch { /* ignore */ }
+        catch
+        {
+            /* ignore */
+        }
 
         try
         {
             _gitHubService.Dispose();
         }
-        catch { /* ignore */ }
+        catch
+        {
+            /* ignore */
+        }
 
         GC.SuppressFinalize(this);
     }
 
-    protected virtual void InvokeOnDispatcher(Action action) => Application.Current.Dispatcher.Invoke(action);
-    protected virtual void InvalidateCommands() => CommandManager.InvalidateRequerySuggested();
-    protected virtual bool DirectoryExists(string path) => Directory.Exists(path);
-    protected virtual string[] GetFiles(string path) => Directory.GetFiles(path);
-    protected virtual Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken) => File.WriteAllBytesAsync(path, data, cancellationToken);
-    protected virtual bool FileExists(string path) => File.Exists(path);
+    protected virtual void InvokeOnDispatcher(Action action)
+    {
+        Application.Current.Dispatcher.Invoke(action);
+    }
+
+    protected virtual void InvalidateCommands()
+    {
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    protected virtual bool DirectoryExists(string path)
+    {
+        return Directory.Exists(path);
+    }
+
+    protected virtual string[] GetFiles(string path)
+    {
+        return Directory.GetFiles(path);
+    }
+
+    protected virtual Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken)
+    {
+        return File.WriteAllBytesAsync(path, data, cancellationToken);
+    }
+
+    protected virtual bool FileExists(string path)
+    {
+        return File.Exists(path);
+    }
+
     protected virtual long GetAvailableFreeSpace(string path)
     {
         var root = Path.GetPathRoot(path) ?? throw new InvalidOperationException("Could not get root path of Cover folder");
@@ -731,7 +771,9 @@ public class MainViewModel : ViewModelBase, IDisposable
     }
 
     protected virtual IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
-        => new GitHubService(token, useProxy, proxyHost, proxyPort, proxyUsername, proxyPassword);
+    {
+        return new GitHubService(token, useProxy, proxyHost, proxyPort, proxyUsername, proxyPassword);
+    }
 
     private bool _disposed;
 }

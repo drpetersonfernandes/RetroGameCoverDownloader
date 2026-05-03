@@ -6,7 +6,7 @@ namespace RetroGameCoverDownloader.Tests.Models;
 public class AppSettingsTests
 {
     [Fact]
-    public void AppSettings_DefaultValues_AreNullOrFalse()
+    public void AppSettingsDefaultValuesAreNullOrFalse()
     {
         var settings = new AppSettings();
 
@@ -19,7 +19,7 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void AppSettings_CanSetProperties()
+    public void AppSettingsCanSetProperties()
     {
         var settings = new AppSettings
         {
@@ -43,7 +43,7 @@ public class AppSettingsTests
     [InlineData(false, null, 0, "disabled")]
     [InlineData(true, "proxy.example.com", 8080, "enabled (http://proxy.example.com:8080)")]
     [InlineData(true, "127.0.0.1", 1080, "enabled (http://127.0.0.1:1080)")]
-    public void FormatProxyStatus_ReturnsExpectedString(bool useProxy, string? host, int port, string expected)
+    public void FormatProxyStatusReturnsExpectedString(bool useProxy, string? host, int port, string expected)
     {
         var result = AppSettings.FormatProxyStatus(useProxy, host, port);
         Assert.Equal(expected, result);

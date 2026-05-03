@@ -32,15 +32,15 @@ public partial class MainWindow
                 var dialog = new TokenDialog { Owner = this };
                 if (dialog.ShowDialog() == true)
                 {
-                try
-                {
-                    settings.GitHubToken = dialog.Token;
-                    SettingsManager.SaveSettings(settings);
+                    try
+                    {
+                        settings.GitHubToken = dialog.Token;
+                        SettingsManager.SaveSettings(settings);
 
-                    // Log successful token save (without exposing token) and update the running service
-                    _viewModel.UpdateToken(dialog.Token);
-                    _viewModel.Log("[OnLoaded] GitHub token saved successfully.");
-                }
+                        // Log successful token save (without exposing token) and update the running service
+                        _viewModel.UpdateToken(dialog.Token);
+                        _viewModel.Log("[OnLoaded] GitHub token saved successfully.");
+                    }
                     catch (Exception ex)
                     {
                         MessageBox.Show("Failed to save token. The application may have limited functionality.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -6,7 +6,7 @@ namespace RetroGameCoverDownloader.Tests.Services;
 public class RateLimiterTests
 {
     [Fact]
-    public void RateLimiter_Authenticated_SetsHigherLimit()
+    public void RateLimiterAuthenticatedSetsHigherLimit()
     {
         var limiter = new RateLimiter(true);
 
@@ -18,11 +18,11 @@ public class RateLimiterTests
         }
 
         // All 4900 should complete without waiting (they're just enqueued)
-        Assert.All(tasks, t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
+        Assert.All(tasks, static t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
     }
 
     [Fact]
-    public void RateLimiter_Unauthenticated_SetsLowerLimit()
+    public void RateLimiterUnauthenticatedSetsLowerLimit()
     {
         var limiter = new RateLimiter(false);
 
@@ -32,11 +32,11 @@ public class RateLimiterTests
             tasks.Add(limiter.WaitForSlotAsync());
         }
 
-        Assert.All(tasks, t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
+        Assert.All(tasks, static t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
     }
 
     [Fact]
-    public async Task RateLimiter_UpdateLimit_ChangesBehavior()
+    public async Task RateLimiterUpdateLimitChangesBehavior()
     {
         var limiter = new RateLimiter(false);
 
@@ -56,15 +56,15 @@ public class RateLimiterTests
             tasks.Add(limiter.WaitForSlotAsync());
         }
 
-        Assert.All(tasks, t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
+        Assert.All(tasks, static t => Assert.Equal(TaskStatus.RanToCompletion, t.Status));
     }
 
     [Fact]
-    public async Task RateLimiter_OnRateLimitHit_FiresEvent()
+    public async Task RateLimiterOnRateLimitHitFiresEvent()
     {
         var limiter = new RateLimiter(false);
         TimeSpan? receivedWaitTime = null;
-        limiter.OnRateLimitHit += waitTime => receivedWaitTime = waitTime;
+        limiter.OnRateLimitHit += waitTime => { receivedWaitTime = waitTime; };
 
         // Exhaust the 55 slots
         for (var i = 0; i < 55; i++)
@@ -82,7 +82,7 @@ public class RateLimiterTests
     }
 
     [Fact]
-    public async Task RateLimiter_CancellationToken_CancelsWait()
+    public async Task RateLimiterCancellationTokenCancelsWait()
     {
         var limiter = new RateLimiter(false);
         using var cts = new CancellationTokenSource();
@@ -90,7 +90,7 @@ public class RateLimiterTests
         // Exhaust the 55 slots
         for (var i = 0; i < 55; i++)
         {
-            await limiter.WaitForSlotAsync();
+            await limiter.WaitForSlotAsync(cts.Token);
         }
 
         cts.Cancel();

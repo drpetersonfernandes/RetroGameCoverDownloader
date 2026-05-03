@@ -49,7 +49,7 @@ public partial class ProxySettingsDialog
     {
         try
         {
-            int parsedPort = 0;
+            var parsedPort = 0;
 
             // Validate inputs if proxy is enabled
             if (UseProxyCheckBox.IsChecked == true)

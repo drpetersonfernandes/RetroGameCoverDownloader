@@ -12,18 +12,19 @@ public class GitHubServiceTests
     #region ParseGitmodules Tests
 
     [Fact]
-    public void ParseGitmodules_ValidInput_ReturnsCorrectMap()
+    public void ParseGitmodulesValidInputReturnsCorrectMap()
     {
-        var input = "[submodule \"Nintendo - NES\"]\n" +
-                    "\tpath = Nintendo - NES\n" +
-                    "\turl = https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System.git\n" +
-                    "[submodule \"Nintendo - SNES\"]\n" +
-                    "\tpath = Nintendo - SNES\n" +
-                    "\turl = https://github.com/libretro-thumbnails/Nintendo_-_Super_Nintendo_Entertainment_System.git\n";
+        const string input = "[submodule \"Nintendo - NES\"]\n" +
+                             "\tpath = Nintendo - NES\n" +
+                             "\turl = https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System.git\n" +
+                             "[submodule \"Nintendo - SNES\"]\n" +
+                             "\tpath = Nintendo - SNES\n" +
+                             "\turl = https://github.com/libretro-thumbnails/Nintendo_-_Super_Nintendo_Entertainment_System.git\n";
 
         var method = typeof(GitHubService).GetMethod("ParseGitmodules", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
 
+        // ReSharper disable once NullableWarningSuppressionIsUsed
         var result = (Dictionary<string, string>)method.Invoke(null, [input])!;
 
         Assert.Equal(2, result.Count);
@@ -32,9 +33,9 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void ParseGitmodules_EmptyInput_ThrowsException()
+    public void ParseGitmodulesEmptyInputThrowsException()
     {
-        var input = "";
+        const string input = "";
 
         var method = typeof(GitHubService).GetMethod("ParseGitmodules", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
@@ -43,18 +44,19 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void ParseGitmodules_MalformedLines_SkipsInvalidEntries()
+    public void ParseGitmodulesMalformedLinesSkipsInvalidEntries()
     {
-        var input = "[submodule \"Bad\"]\n" +
-                    "\tpath = Bad\n" +
-                    "\turl = /\n" +
-                    "[submodule \"Good\"]\n" +
-                    "\tpath = Good\n" +
-                    "\turl = https://github.com/libretro-thumbnails/Good_System.git\n";
+        const string input = "[submodule \"Bad\"]\n" +
+                             "\tpath = Bad\n" +
+                             "\turl = /\n" +
+                             "[submodule \"Good\"]\n" +
+                             "\tpath = Good\n" +
+                             "\turl = https://github.com/libretro-thumbnails/Good_System.git\n";
 
         var method = typeof(GitHubService).GetMethod("ParseGitmodules", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
 
+        // ReSharper disable once NullableWarningSuppressionIsUsed
         var result = (Dictionary<string, string>)method.Invoke(null, [input])!;
 
         Assert.Single(result);
@@ -66,7 +68,7 @@ public class GitHubServiceTests
     #region Disposal Tests
 
     [Fact]
-    public void Dispose_DisposesHttpClient()
+    public void DisposeDisposesHttpClient()
     {
         var handler = new TrackingHttpMessageHandler();
         var client = new HttpClient(handler);
@@ -78,14 +80,14 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void Dispose_IsIdempotent()
+    public void DisposeIsIdempotent()
     {
         var handler = new TrackingHttpMessageHandler();
         var client = new HttpClient(handler);
         var service = new GitHubService(client);
 
         service.Dispose();
-        var exception = Record.Exception(() => service.Dispose());
+        var exception = Record.Exception(service.Dispose);
 
         Assert.Null(exception);
         Assert.True(handler.IsDisposed);
@@ -96,7 +98,7 @@ public class GitHubServiceTests
     #region HttpResponseMessage Leak Tests
 
     [Fact]
-    public async Task GetSystemFilesAsync_DisposesHttpResponseMessage_OnNotFound()
+    public async Task GetSystemFilesAsyncDisposesHttpResponseMessageOnNotFound()
     {
         // Arrange: both branches return 404 NotFound, causing 'continue' in the loop.
         var responseMain = new TrackingHttpResponseMessage(HttpStatusCode.NotFound);
@@ -105,6 +107,7 @@ public class GitHubServiceTests
         {
             if (request.RequestUri?.ToString().Contains("/master?recursive=1") == true)
                 return responseMaster;
+
             return responseMain;
         });
 
@@ -113,7 +116,7 @@ public class GitHubServiceTests
         var system = new SystemConfig("TestSystem", "test-owner", "test-repo", "Named_Boxarts");
 
         // Act
-        await service.GetSystemFilesAsync(system, _ => { });
+        await service.GetSystemFilesAsync(system, static _ => { });
 
         // Assert: both responses should be disposed by the 'using var' statements
         Assert.True(responseMain.IsDisposed, "Expected the 404 response for 'main' branch to be disposed.");
@@ -121,7 +124,7 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public async Task GetSystemFilesAsync_DisposesHttpResponseMessage_OnInternalServerError()
+    public async Task GetSystemFilesAsyncDisposesHttpResponseMessageOnInternalServerError()
     {
         // Arrange: first branch returns 500, triggering early return via fallback.
         var response500 = new TrackingHttpResponseMessage(HttpStatusCode.InternalServerError);
@@ -142,7 +145,7 @@ public class GitHubServiceTests
         var system = new SystemConfig("TestSystem", "test-owner", "test-repo", "Named_Boxarts");
 
         // Act
-        await service.GetSystemFilesAsync(system, _ => { });
+        await service.GetSystemFilesAsync(system, static _ => { });
 
         // Assert: the 500 response should be disposed despite the early return path
         Assert.True(response500.IsDisposed, "Expected the 500 InternalServerError response to be disposed.");
@@ -172,7 +175,9 @@ public class GitHubServiceTests
     {
         public bool IsDisposed { get; private set; }
 
-        public TrackingHttpResponseMessage(HttpStatusCode statusCode) : base(statusCode) { }
+        public TrackingHttpResponseMessage(HttpStatusCode statusCode) : base(statusCode)
+        {
+        }
 
         protected override void Dispose(bool disposing)
         {

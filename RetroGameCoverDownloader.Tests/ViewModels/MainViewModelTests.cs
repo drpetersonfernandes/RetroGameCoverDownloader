@@ -13,13 +13,15 @@ public class MainViewModelTests
 {
     #region Helpers
 
-    private static MainViewModel CreateViewModel(AppSettings? settings = null, IGitHubService? service = null)
-        => new TestableMainViewModel(settings ?? new AppSettings(), service ?? new FakeGitHubService());
+    private static TestableMainViewModel CreateViewModel(AppSettings? settings = null, IGitHubService? service = null)
+    {
+        return new TestableMainViewModel(settings ?? new AppSettings(), service ?? new FakeGitHubService());
+    }
 
     private static void SetCts(MainViewModel vm, CancellationTokenSource cts)
     {
-        var field = typeof(MainViewModel).GetField("_cts", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        field.SetValue(vm, cts);
+        var field = typeof(MainViewModel).GetField("_cts", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field != null) field.SetValue(vm, cts);
     }
 
     private static string CreateTempSettingsFile(AppSettings? settings = null)
@@ -40,38 +42,75 @@ public class MainViewModelTests
         public bool Disposed { get; private set; }
 
         public Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default)
-            => OnGetAvailableSystemsAsync?.Invoke(logAction, cancellationToken) ?? Task.FromResult(new List<SystemConfig>());
+        {
+            return OnGetAvailableSystemsAsync?.Invoke(logAction, cancellationToken) ?? Task.FromResult(new List<SystemConfig>());
+        }
 
         public Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction, CancellationToken cancellationToken = default)
-            => OnGetSystemFilesAsync?.Invoke(system, logAction, cancellationToken) ?? Task.FromResult((string.Empty, new List<GitHubTreeItem>()));
+        {
+            return OnGetSystemFilesAsync?.Invoke(system, logAction, cancellationToken) ?? Task.FromResult((string.Empty, new List<GitHubTreeItem>()));
+        }
 
         public Task<byte[]?> DownloadFileAsync(string url, Action<string>? logAction = null, CancellationToken cancellationToken = default)
-            => OnDownloadFileAsync?.Invoke(url, logAction, cancellationToken) ?? Task.FromResult<byte[]?>(null);
+        {
+            return OnDownloadFileAsync?.Invoke(url, logAction, cancellationToken) ?? Task.FromResult<byte[]?>(null);
+        }
 
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            Disposed = true;
+        }
     }
 
     private class TestableMainViewModel : MainViewModel
     {
-        public TestableMainViewModel(AppSettings settings, IGitHubService service) : base(settings, service, suppressStartup: true) { }
+        public TestableMainViewModel(AppSettings settings, IGitHubService service) : base(settings, service, true)
+        {
+        }
 
         public Dictionary<string, string[]> FilesByPath { get; } = new();
         public Dictionary<string, byte[]> WrittenFiles { get; } = new();
         public long AvailableFreeSpace { get; set; } = long.MaxValue;
         public Func<string, bool>? DirectoryExistsOverride { get; set; }
 
-        protected override void InvokeOnDispatcher(Action action) => action();
-        protected override void InvalidateCommands() { }
-        protected override bool DirectoryExists(string path) => DirectoryExistsOverride?.Invoke(path) ?? true;
-        protected override string[] GetFiles(string path) => FilesByPath.TryGetValue(path, out var files) ? files : Array.Empty<string>();
+        protected override void InvokeOnDispatcher(Action action)
+        {
+            action();
+        }
+
+        protected override void InvalidateCommands()
+        {
+        }
+
+        protected override bool DirectoryExists(string path)
+        {
+            return DirectoryExistsOverride?.Invoke(path) ?? true;
+        }
+
+        protected override string[] GetFiles(string path)
+        {
+            return FilesByPath.TryGetValue(path, out var files) ? files : [];
+        }
+
         protected override Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken)
         {
             WrittenFiles[path] = data;
             return Task.CompletedTask;
         }
-        protected override bool FileExists(string path) => WrittenFiles.ContainsKey(path);
-        protected override long GetAvailableFreeSpace(string path) => AvailableFreeSpace;
-        protected override void SelectFolder(Action<string> setPath) { }
+
+        protected override bool FileExists(string path)
+        {
+            return WrittenFiles.ContainsKey(path);
+        }
+
+        protected override long GetAvailableFreeSpace(string path)
+        {
+            return AvailableFreeSpace;
+        }
+
+        protected override void SelectFolder(Action<string> setPath)
+        {
+        }
     }
 
     #endregion
@@ -79,7 +118,7 @@ public class MainViewModelTests
     #region CanExecute
 
     [Fact]
-    public void PrepareCommand_CanExecute_WhenNotBusyAndFoldersSet_ReturnsTrue()
+    public void PrepareCommandCanExecuteWhenNotBusyAndFoldersSetReturnsTrue()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
@@ -91,7 +130,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void PrepareCommand_CanExecute_WhenBusy_ReturnsFalse()
+    public void PrepareCommandCanExecuteWhenBusyReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = true;
@@ -103,7 +142,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void PrepareCommand_CanExecute_WhenMissingFolder_ReturnsFalse()
+    public void PrepareCommandCanExecuteWhenMissingFolderReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
@@ -115,7 +154,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void PrepareCommand_CanExecute_WhenNoSystem_ReturnsFalse()
+    public void PrepareCommandCanExecuteWhenNoSystemReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
@@ -127,17 +166,17 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void DownloadCommand_CanExecute_WhenItemsExistAndNotBusy_ReturnsTrue()
+    public void DownloadCommandCanExecuteWhenItemsExistAndNotBusyReturnsTrue()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
-        vm._itemsToDownload.Add(new CoverDownloadItem { GameName = "Test" });
+        vm.ItemsToDownload.Add(new CoverDownloadItem { GameName = "Test" });
 
         Assert.True(vm.DownloadCommand.CanExecute(null));
     }
 
     [Fact]
-    public void DownloadCommand_CanExecute_WhenNoItems_ReturnsFalse()
+    public void DownloadCommandCanExecuteWhenNoItemsReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
@@ -146,17 +185,17 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void DownloadCommand_CanExecute_WhenBusy_ReturnsFalse()
+    public void DownloadCommandCanExecuteWhenBusyReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = true;
-        vm._itemsToDownload.Add(new CoverDownloadItem { GameName = "Test" });
+        vm.ItemsToDownload.Add(new CoverDownloadItem { GameName = "Test" });
 
         Assert.False(vm.DownloadCommand.CanExecute(null));
     }
 
     [Fact]
-    public void CancelCommand_CanExecute_WhenBusyAndCtsSet_ReturnsTrue()
+    public void CancelCommandCanExecuteWhenBusyAndCtsSetReturnsTrue()
     {
         var vm = CreateViewModel();
         vm.IsBusy = true;
@@ -166,7 +205,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void CancelCommand_CanExecute_WhenNotBusy_ReturnsFalse()
+    public void CancelCommandCanExecuteWhenNotBusyReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = false;
@@ -175,7 +214,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void CancelCommand_CanExecute_WhenBusyButNoCts_ReturnsFalse()
+    public void CancelCommandCanExecuteWhenBusyButNoCtsReturnsFalse()
     {
         var vm = CreateViewModel();
         vm.IsBusy = true;
@@ -188,10 +227,10 @@ public class MainViewModelTests
     #region PrepareDownloadAsync
 
     [Fact]
-    public async Task PrepareDownloadAsync_MissingDirectory_LogsErrorAndSetsBusyFalse()
+    public async Task PrepareDownloadAsyncMissingDirectoryLogsErrorAndSetsBusyFalse()
     {
-        var vm = (TestableMainViewModel)CreateViewModel();
-        vm.DirectoryExistsOverride = _ => false;
+        var vm = CreateViewModel();
+        vm.DirectoryExistsOverride = static _ => false;
         vm.RomFolderPath = @"C:\Roms";
         vm.CoverFolderPath = @"C:\Covers";
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
@@ -199,72 +238,72 @@ public class MainViewModelTests
         await vm.PrepareDownloadAsync();
 
         Assert.False(vm.IsBusy);
-        Assert.Empty(vm._itemsToDownload);
+        Assert.Empty(vm.ItemsToDownload);
     }
 
     [Fact]
-    public async Task PrepareDownloadAsync_NoMissingCovers_LeavesItemsEmpty()
+    public async Task PrepareDownloadAsyncNoMissingCoversLeavesItemsEmpty()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.RomFolderPath = @"C:\Roms";
         vm.CoverFolderPath = @"C:\Covers";
-        vm.FilesByPath[vm.RomFolderPath] = new[] { @"C:\Roms\Game1.nes" };
-        vm.FilesByPath[vm.CoverFolderPath] = new[] { @"C:\Covers\Game1.png" };
+        vm.FilesByPath[vm.RomFolderPath] = [@"C:\Roms\Game1.nes"];
+        vm.FilesByPath[vm.CoverFolderPath] = [@"C:\Covers\Game1.png"];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
+        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
         {
-            new GitHubTreeItem { Path = "Named_Boxarts/Game1.png", Type = "blob" }
+            new() { Path = "Named_Boxarts/Game1.png", Type = "blob" }
         }));
 
         await vm.PrepareDownloadAsync();
 
-        Assert.Empty(vm._itemsToDownload);
+        Assert.Empty(vm.ItemsToDownload);
         Assert.False(vm.IsBusy);
     }
 
     [Fact]
-    public async Task PrepareDownloadAsync_MatchingCovers_PopulatesItemsToDownload()
+    public async Task PrepareDownloadAsyncMatchingCoversPopulatesItemsToDownload()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.RomFolderPath = @"C:\Roms";
         vm.CoverFolderPath = @"C:\Covers";
-        vm.FilesByPath[vm.RomFolderPath] = new[] { @"C:\Roms\Super Mario Bros.nes" };
-        vm.FilesByPath[vm.CoverFolderPath] = Array.Empty<string>();
+        vm.FilesByPath[vm.RomFolderPath] = [@"C:\Roms\Super Mario Bros.nes"];
+        vm.FilesByPath[vm.CoverFolderPath] = [];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
+        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
         {
-            new GitHubTreeItem { Path = "Named_Boxarts/Super Mario Bros.png", Type = "blob" }
+            new() { Path = "Named_Boxarts/Super Mario Bros.png", Type = "blob" }
         }));
 
         await vm.PrepareDownloadAsync();
 
-        Assert.Single(vm._itemsToDownload);
-        Assert.Equal("Super Mario Bros", vm._itemsToDownload[0].GameName);
-        Assert.Equal("Super Mario Bros.png", vm._itemsToDownload[0].TargetFilename);
-        Assert.Contains("raw.githubusercontent.com", vm._itemsToDownload[0].DownloadUrl);
+        Assert.Single(vm.ItemsToDownload);
+        Assert.Equal("Super Mario Bros", vm.ItemsToDownload[0].GameName);
+        Assert.Equal("Super Mario Bros.png", vm.ItemsToDownload[0].TargetFilename);
+        Assert.Contains("raw.githubusercontent.com", vm.ItemsToDownload[0].DownloadUrl);
         Assert.False(vm.IsBusy);
     }
 
     [Fact]
-    public async Task PrepareDownloadAsync_GitHubFilesEmpty_LeavesItemsEmpty()
+    public async Task PrepareDownloadAsyncGitHubFilesEmptyLeavesItemsEmpty()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.RomFolderPath = @"C:\Roms";
         vm.CoverFolderPath = @"C:\Covers";
-        vm.FilesByPath[vm.RomFolderPath] = new[] { @"C:\Roms\Game1.nes" };
-        vm.FilesByPath[vm.CoverFolderPath] = Array.Empty<string>();
+        vm.FilesByPath[vm.RomFolderPath] = [@"C:\Roms\Game1.nes"];
+        vm.FilesByPath[vm.CoverFolderPath] = [];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>()));
+        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>()));
 
         await vm.PrepareDownloadAsync();
 
-        Assert.Empty(vm._itemsToDownload);
+        Assert.Empty(vm.ItemsToDownload);
         Assert.False(vm.IsBusy);
     }
 
@@ -273,7 +312,7 @@ public class MainViewModelTests
     #region DownloadCoversAsync
 
     [Fact]
-    public async Task DownloadCoversAsync_NoItems_ReturnsImmediately()
+    public async Task DownloadCoversAsyncNoItemsReturnsImmediately()
     {
         var vm = CreateViewModel();
 
@@ -283,19 +322,19 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task DownloadCoversAsync_SuccessfulDownload_WritesFilesAndUpdatesProgress()
+    public async Task DownloadCoversAsyncSuccessfulDownloadWritesFilesAndUpdatesProgress()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.CoverFolderPath = @"C:\Covers";
-        vm._itemsToDownload.Add(new CoverDownloadItem
+        vm.ItemsToDownload.Add(new CoverDownloadItem
         {
             GameName = "Super Mario Bros",
             TargetFilename = "Super Mario Bros.png",
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = (_, _, _) => Task.FromResult<byte[]?>(new byte[] { 1, 2, 3 });
+        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>([1, 2, 3]);
 
         await vm.DownloadCoversAsync();
 
@@ -306,20 +345,20 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task DownloadCoversAsync_LowDiskSpace_AbortsWithIOException()
+    public async Task DownloadCoversAsyncLowDiskSpaceAbortsWithIoException()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.CoverFolderPath = @"C:\Covers";
         vm.AvailableFreeSpace = 0;
-        vm._itemsToDownload.Add(new CoverDownloadItem
+        vm.ItemsToDownload.Add(new CoverDownloadItem
         {
             GameName = "Super Mario Bros",
             TargetFilename = "Super Mario Bros.png",
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = (_, _, _) => Task.FromResult<byte[]?>(new byte[] { 1, 2, 3 });
+        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>([1, 2, 3]);
 
         await vm.DownloadCoversAsync();
 
@@ -328,19 +367,19 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task DownloadCoversAsync_NullData_SkipsItem()
+    public async Task DownloadCoversAsyncNullDataSkipsItem()
     {
         var fake = new FakeGitHubService();
-        var vm = (TestableMainViewModel)CreateViewModel(service: fake);
+        var vm = CreateViewModel(service: fake);
         vm.CoverFolderPath = @"C:\Covers";
-        vm._itemsToDownload.Add(new CoverDownloadItem
+        vm.ItemsToDownload.Add(new CoverDownloadItem
         {
             GameName = "Super Mario Bros",
             TargetFilename = "Super Mario Bros.png",
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = (_, _, _) => Task.FromResult<byte[]?>(null);
+        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>(null);
 
         await vm.DownloadCoversAsync();
 
@@ -354,7 +393,7 @@ public class MainViewModelTests
     #region Disposal
 
     [Fact]
-    public void Dispose_CallsGitHubServiceDispose()
+    public void DisposeCallsGitHubServiceDispose()
     {
         var fake = new FakeGitHubService();
         var vm = CreateViewModel(service: fake);
@@ -365,7 +404,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void Dispose_MultipleCalls_DoesNotThrow()
+    public void DisposeMultipleCallsDoesNotThrow()
     {
         var vm = CreateViewModel();
 
@@ -383,7 +422,7 @@ public class MainViewModelTests
     #region Token / Proxy Updates
 
     [Fact]
-    public void UpdateToken_SwapsServiceAndDisposesOld()
+    public void UpdateTokenSwapsServiceAndDisposesOld()
     {
         var oldService = new FakeGitHubService();
         var newService = new FakeGitHubService();
@@ -405,7 +444,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void UpdateProxySettings_SwapsServiceAndDisposesOld()
+    public void UpdateProxySettingsSwapsServiceAndDisposesOld()
     {
         var oldService = new FakeGitHubService();
         var newService = new FakeGitHubService();
@@ -421,14 +460,16 @@ public class MainViewModelTests
     {
         private readonly FakeGitHubService _next;
 
-        public TestableMainViewModelWithFactory(FakeGitHubService initial, FakeGitHubService next)
-            : base(new AppSettings(), initial, suppressStartup: true)
+        public TestableMainViewModelWithFactory(IGitHubService initial, FakeGitHubService next)
+            : base(new AppSettings(), initial, true)
         {
             _next = next;
         }
 
         protected override IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
-            => _next;
+        {
+            return _next;
+        }
     }
 
     #endregion

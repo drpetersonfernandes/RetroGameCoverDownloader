@@ -92,7 +92,7 @@ public class GitHubService : IGitHubService
         if (!string.IsNullOrWhiteSpace(token))
         {
             var scheme = token.StartsWith("ghp_", StringComparison.OrdinalIgnoreCase)
-                      || token.StartsWith("github_pat_", StringComparison.OrdinalIgnoreCase)
+                         || token.StartsWith("github_pat_", StringComparison.OrdinalIgnoreCase)
                 ? "Bearer"
                 : "token";
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(scheme, token);
@@ -171,7 +171,7 @@ public class GitHubService : IGitHubService
                 }
 
                 response.EnsureSuccessStatusCode();
-                var json = await response.Content.ReadAsStringAsync();
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
                 var tree = JsonSerializer.Deserialize<GitHubTree>(json, _jsonOptions);
 
                 if (tree?.Tree != null)
@@ -188,7 +188,6 @@ public class GitHubService : IGitHubService
                 var errorMsg = $"{context}Error fetching files: {ex.Message}";
                 logAction(errorMsg);
                 await BugReportService.LogErrorAsync(ex, $"{context}Exception while fetching system files on branch '{branch}', trying next branch.");
-                continue;
             }
         }
 
@@ -414,6 +413,7 @@ public class GitHubService : IGitHubService
         _disposed = true;
 
         _httpClient.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private bool _disposed;

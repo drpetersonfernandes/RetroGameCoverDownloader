@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using RetroGameCoverDownloader.Commands;
 using Xunit;
 
@@ -7,10 +6,10 @@ namespace RetroGameCoverDownloader.Tests.Commands;
 public class RelayCommandTests
 {
     [Fact]
-    public void RelayCommand_Execute_CallsAction()
+    public void RelayCommandExecuteCallsAction()
     {
         var executed = false;
-        var command = new RelayCommand(_ => executed = true);
+        var command = new RelayCommand(_ => { executed = true; });
 
         command.Execute(null);
 
@@ -18,26 +17,26 @@ public class RelayCommandTests
     }
 
     [Fact]
-    public void RelayCommand_CanExecute_WithoutPredicate_ReturnsTrue()
+    public void RelayCommandCanExecuteWithoutPredicateReturnsTrue()
     {
-        var command = new RelayCommand(_ => { });
+        var command = new RelayCommand(static _ => { });
 
         Assert.True(command.CanExecute(null));
     }
 
     [Fact]
-    public void RelayCommand_CanExecute_WithPredicate_ReturnsPredicateResult()
+    public void RelayCommandCanExecuteWithPredicateReturnsPredicateResult()
     {
-        var command = new RelayCommand(_ => { }, _ => false);
+        var command = new RelayCommand(static _ => { }, static _ => false);
 
         Assert.False(command.CanExecute(null));
     }
 
     [Fact]
-    public void RelayCommand_Execute_PassesParameter()
+    public void RelayCommandExecutePassesParameter()
     {
         object? received = null;
-        var command = new RelayCommand(param => received = param);
+        var command = new RelayCommand(param => { received = param; });
 
         command.Execute("test");
 
@@ -48,7 +47,7 @@ public class RelayCommandTests
 public class AsyncRelayCommandTests
 {
     [Fact]
-    public async Task AsyncRelayCommand_Execute_CallsAsyncAction()
+    public async Task AsyncRelayCommandExecuteCallsAsyncAction()
     {
         var executed = false;
         var command = new AsyncRelayCommand(_ =>
@@ -66,23 +65,23 @@ public class AsyncRelayCommandTests
     }
 
     [Fact]
-    public void AsyncRelayCommand_CanExecute_WithoutPredicate_ReturnsTrue()
+    public void AsyncRelayCommandCanExecuteWithoutPredicateReturnsTrue()
     {
-        var command = new AsyncRelayCommand(_ => Task.CompletedTask);
+        var command = new AsyncRelayCommand(static _ => Task.CompletedTask);
 
         Assert.True(command.CanExecute(null));
     }
 
     [Fact]
-    public void AsyncRelayCommand_CanExecute_WithPredicate_ReturnsPredicateResult()
+    public void AsyncRelayCommandCanExecuteWithPredicateReturnsPredicateResult()
     {
-        var command = new AsyncRelayCommand(_ => Task.CompletedTask, _ => false);
+        var command = new AsyncRelayCommand(static _ => Task.CompletedTask, static _ => false);
 
         Assert.False(command.CanExecute(null));
     }
 
     [Fact]
-    public void AsyncRelayCommand_CanExecute_WhileExecuting_ReturnsFalse()
+    public void AsyncRelayCommandCanExecuteWhileExecutingReturnsFalse()
     {
         var tcs = new TaskCompletionSource();
         var command = new AsyncRelayCommand(_ => tcs.Task);
@@ -97,21 +96,21 @@ public class AsyncRelayCommandTests
     }
 
     [Fact]
-    public async Task AsyncRelayCommand_Execute_SwallowsException()
+    public Task AsyncRelayCommandExecuteSwallowsException()
     {
-        var command = new AsyncRelayCommand(_ => throw new InvalidOperationException("test"));
+        var command = new AsyncRelayCommand(static _ => throw new InvalidOperationException("test"));
 
         var ex = Record.Exception(() => command.Execute(null));
         Assert.Null(ex);
 
         // Allow the async void Execute to complete
-        await Task.Delay(50);
+        return Task.Delay(50);
     }
 
     [Fact]
-    public async Task AsyncRelayCommand_Execute_SwallowsAsyncException()
+    public Task AsyncRelayCommandExecuteSwallowsAsyncException()
     {
-        var command = new AsyncRelayCommand(async _ =>
+        var command = new AsyncRelayCommand(static async _ =>
         {
             await Task.Yield();
             throw new InvalidOperationException("test");
@@ -121,6 +120,6 @@ public class AsyncRelayCommandTests
         Assert.Null(ex);
 
         // Allow the async void Execute to complete
-        await Task.Delay(50);
+        return Task.Delay(50);
     }
 }

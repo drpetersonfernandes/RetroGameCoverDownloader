@@ -6,7 +6,7 @@ namespace RetroGameCoverDownloader.Tests.Models;
 public class GitHubTreeTests
 {
     [Fact]
-    public void GitHubTree_DefaultValues_AreInitialized()
+    public void GitHubTreeDefaultValuesAreInitialized()
     {
         var tree = new GitHubTree();
 
@@ -18,7 +18,7 @@ public class GitHubTreeTests
     }
 
     [Fact]
-    public void GitHubTreeItem_DefaultValues_AreEmpty()
+    public void GitHubTreeItemDefaultValuesAreEmpty()
     {
         var item = new GitHubTreeItem();
 
@@ -29,7 +29,7 @@ public class GitHubTreeTests
     }
 
     [Fact]
-    public void GitHubTree_CanAddItems()
+    public void GitHubTreeCanAddItems()
     {
         var tree = new GitHubTree
         {

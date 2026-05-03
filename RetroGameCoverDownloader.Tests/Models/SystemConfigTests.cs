@@ -6,7 +6,7 @@ namespace RetroGameCoverDownloader.Tests.Models;
 public class SystemConfigTests
 {
     [Fact]
-    public void SystemConfig_Constructor_SetsProperties()
+    public void SystemConfigConstructorSetsProperties()
     {
         var config = new SystemConfig("Nintendo - SNES", "libretro-thumbnails", "Nintendo_-_Super_Nintendo_Entertainment_System", "Named_Boxarts");
 
@@ -17,7 +17,7 @@ public class SystemConfigTests
     }
 
     [Fact]
-    public void SystemConfig_Properties_AreReadOnly()
+    public void SystemConfigPropertiesAreReadOnly()
     {
         var config = new SystemConfig("Test", "Owner", "Repo", "Folder");
 

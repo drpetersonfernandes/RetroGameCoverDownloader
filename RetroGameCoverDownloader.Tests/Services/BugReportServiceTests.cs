@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
-using System.Threading;
 using RetroGameCoverDownloader.Services;
 using Xunit;
 
@@ -10,7 +9,7 @@ namespace RetroGameCoverDownloader.Tests.Services;
 public class BugReportServiceTests
 {
     [Fact]
-    public void LogErrorSync_WithSingleThreadedSynchronizationContext_DoesNotDeadlock()
+    public void LogErrorSyncWithSingleThreadedSynchronizationContextDoesNotDeadlock()
     {
         // Arrange: Swap in a fake HttpClient so the network call returns instantly.
         var originalClient = BugReportService.HttpClientInstance;
@@ -75,7 +74,7 @@ public class BugReportServiceTests
     /// A SynchronizationContext that executes posted callbacks on the thread that calls <see cref="Run"/>.
     /// This closely mimics a WPF Dispatcher or Windows Forms message loop.
     /// </summary>
-    private class SingleThreadSynchronizationContext : SynchronizationContext
+    private class SingleThreadSynchronizationContext : SynchronizationContext, IDisposable
     {
         private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = new();
 
@@ -103,6 +102,11 @@ public class BugReportServiceTests
             {
                 item.Callback(item.State);
             }
+        }
+
+        public void Dispose()
+        {
+            _queue.Dispose();
         }
     }
 }

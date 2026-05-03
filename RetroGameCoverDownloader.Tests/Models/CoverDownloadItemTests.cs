@@ -6,7 +6,7 @@ namespace RetroGameCoverDownloader.Tests.Models;
 public class CoverDownloadItemTests
 {
     [Fact]
-    public void CoverDownloadItem_DefaultValues_AreEmpty()
+    public void CoverDownloadItemDefaultValuesAreEmpty()
     {
         var item = new CoverDownloadItem();
 
@@ -16,7 +16,7 @@ public class CoverDownloadItemTests
     }
 
     [Fact]
-    public void CoverDownloadItem_CanSetProperties()
+    public void CoverDownloadItemCanSetProperties()
     {
         var item = new CoverDownloadItem
         {

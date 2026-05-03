@@ -92,7 +92,7 @@ public static class BugReportService
     {
         if (ex == null)
         {
-            ex = new Exception("BugReportService.LogErrorSync was called with a null exception object.");
+            ex = new InvalidOperationException("BugReportService.LogErrorSync was called with a null exception object.");
             try
             {
                 throw ex;
@@ -131,7 +131,7 @@ public static class BugReportService
     {
         if (ex == null)
         {
-            ex = new Exception("BugReportService.LogErrorAsync was called with a null exception object.");
+            ex = new InvalidOperationException("BugReportService.LogErrorAsync was called with a null exception object.");
             try
             {
                 throw ex;
@@ -167,9 +167,9 @@ public static class BugReportService
 
             var payload = new
             {
-                message = message,
+                message,
                 applicationName = ApplicationName,
-                version = version,
+                version,
                 stackTrace = ex.StackTrace,
                 userInfo = contextMessage,
                 environment = RuntimeInformation.OSDescription

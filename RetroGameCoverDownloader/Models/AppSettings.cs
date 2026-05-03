@@ -18,6 +18,8 @@ public class AppSettings
     [XmlElement("ProxyPassword")]
     public string? ProxyPasswordEncrypted { get; set; }
 
-    public static string FormatProxyStatus(bool useProxy, string? proxyHost, int proxyPort) =>
-        useProxy ? $"enabled (http://{proxyHost}:{proxyPort})" : "disabled";
+    public static string FormatProxyStatus(bool useProxy, string? proxyHost, int proxyPort)
+    {
+        return useProxy ? $"enabled (http://{proxyHost}:{proxyPort})" : "disabled";
+    }
 }

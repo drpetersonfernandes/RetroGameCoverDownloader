@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using RetroGameCoverDownloader.Services;
 
 namespace RetroGameCoverDownloader.Commands;
 
@@ -20,6 +21,7 @@ public class AsyncRelayCommand : ICommand
         private set
         {
             if (_isExecuting == value) return;
+
             _isExecuting = value;
             CommandManager.InvalidateRequerySuggested();
         }
@@ -32,21 +34,28 @@ public class AsyncRelayCommand : ICommand
 
     public async void Execute(object? parameter)
     {
-        if (!CanExecute(parameter)) return;
-
-        IsExecuting = true;
         try
         {
-            await _execute(parameter);
+            if (!CanExecute(parameter)) return;
+
+            IsExecuting = true;
+            try
+            {
+                await _execute(parameter);
+            }
+            catch
+            {
+                // Prevent exceptions from reaching the WPF synchronization context.
+                // ViewModel methods are expected to handle their own logging.
+            }
+            finally
+            {
+                IsExecuting = false;
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Prevent exceptions from reaching the WPF synchronization context.
-            // ViewModel methods are expected to handle their own logging.
-        }
-        finally
-        {
-            IsExecuting = false;
+            _ = BugReportService.LogErrorAsync(ex, "[AsyncRelayCommand] Unhandled exception in Execute.");
         }
     }
 

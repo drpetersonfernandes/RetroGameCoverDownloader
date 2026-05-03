@@ -8,7 +8,7 @@ namespace RetroGameCoverDownloader.Tests.Managers;
 public class SettingsManagerTests
 {
     [Fact]
-    public void LoadSettings_FileDoesNotExist_ReturnsDefaultSettings()
+    public void LoadSettingsFileDoesNotExistReturnsDefaultSettings()
     {
         var originalPath = SettingsManager.SettingsFilePath;
         var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
@@ -39,7 +39,7 @@ public class SettingsManagerTests
     }
 
     [Fact]
-    public void SaveSettings_AndLoadSettings_RoundTrip()
+    public void SaveSettingsAndLoadSettingsRoundTrip()
     {
         var originalPath = SettingsManager.SettingsFilePath;
         var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
