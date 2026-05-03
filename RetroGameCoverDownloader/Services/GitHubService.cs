@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -134,11 +135,38 @@ public class GitHubService : IGitHubService
                     }
                 }
             }
+
+            if (systems.Count > 0)
+            {
+                await SaveSystemsToCacheAsync(systems);
+            }
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            var errorMsg = $"{context}GitHub API rate limit exceeded. {ex.Message}";
+            logAction(errorMsg);
+
+            var cached = await LoadSystemsFromCacheAsync();
+            if (cached != null)
+            {
+                logAction("Using cached system list due to rate limiting.");
+                return cached;
+            }
+
+            logAction("No cached system list available.");
         }
         catch (Exception ex)
         {
             var errorMsg = $"{context}Error fetching systems: {ex.Message}";
             logAction(errorMsg);
+
+            var cached = await LoadSystemsFromCacheAsync();
+            if (cached != null)
+            {
+                logAction("Using cached system list due to error.");
+                return cached;
+            }
+
             await BugReportService.LogErrorAsync(ex, $"{context}Failed to fetch available systems from GitHub.");
         }
 
@@ -331,6 +359,47 @@ public class GitHubService : IGitHubService
         return Task.CompletedTask;
     }
 
+    private static readonly string SystemsCacheDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RetroGameCoverDownloader");
+    internal static string SystemsCacheFilePath { get; set; } = Path.Combine(SystemsCacheDirectory, "systems_cache.json");
+
+    internal async Task SaveSystemsToCacheAsync(List<SystemConfig> systems)
+    {
+        try
+        {
+            var cacheFile = SystemsCacheFilePath;
+            var cacheDir = Path.GetDirectoryName(cacheFile);
+            if (!string.IsNullOrEmpty(cacheDir))
+            {
+                Directory.CreateDirectory(cacheDir);
+            }
+
+            var json = JsonSerializer.Serialize(systems, _jsonOptions);
+            await File.WriteAllTextAsync(cacheFile, json);
+        }
+        catch (Exception ex)
+        {
+            // Don't let cache write failures break the app
+            _ = BugReportService.LogErrorAsync(ex, "[GitHubService] Failed to save systems cache.");
+        }
+    }
+
+    internal async Task<List<SystemConfig>?> LoadSystemsFromCacheAsync()
+    {
+        try
+        {
+            var cacheFile = SystemsCacheFilePath;
+            if (!File.Exists(cacheFile)) return null;
+
+            var json = await File.ReadAllTextAsync(cacheFile);
+            return JsonSerializer.Deserialize<List<SystemConfig>>(json, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, "[GitHubService] Failed to load systems cache.");
+            return null;
+        }
+    }
+
     private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3, CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; attempt <= maxRetries; attempt++)
@@ -351,8 +420,18 @@ public class GitHubService : IGitHubService
 
     private static bool IsTransientError(Exception ex)
     {
-        return ex is TaskCanceledException { InnerException: TimeoutException }
-            or HttpRequestException { InnerException: System.Net.Sockets.SocketException };
+        if (ex is HttpRequestException httpEx)
+        {
+            // Don't retry on client errors (4xx) except 408 (Request Timeout) and 429 (Too Many Requests)
+            if (httpEx.StatusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError)
+            {
+                return httpEx.StatusCode is HttpStatusCode.RequestTimeout or (HttpStatusCode)429;
+            }
+
+            return httpEx.InnerException is System.Net.Sockets.SocketException;
+        }
+
+        return ex is TaskCanceledException { InnerException: TimeoutException };
     }
 
     private static Dictionary<string, string> ParseGitmodules(string content)

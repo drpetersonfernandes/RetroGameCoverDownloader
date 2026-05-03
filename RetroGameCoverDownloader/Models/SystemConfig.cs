@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RetroGameCoverDownloader.Models;
 
 public class SystemConfig
@@ -7,6 +9,7 @@ public class SystemConfig
     public string Repo { get; }
     public string FolderPath { get; }
 
+    [JsonConstructor]
     public SystemConfig(string systemName, string owner, string repo, string folderPath)
     {
         SystemName = systemName;
