@@ -204,15 +204,26 @@ public class GitHubService : IGitHubService
         var context = LogContext.ForMethod();
         var rawUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{branch}/.gitmodules";
 
+        Exception? firstException;
+
         try
         {
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
             return await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), cancellationToken: cancellationToken);
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            firstException = ex;
+            logAction($"{context}raw.githubusercontent.com rate limited ({ex.Message}), trying GitHub Contents API...");
+        }
         catch (Exception ex)
         {
+            firstException = ex;
             logAction($"{context}raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
+        }
 
+        try
+        {
             var contentsApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/contents/.gitmodules?ref={branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
             var json = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), cancellationToken: cancellationToken);
@@ -231,6 +242,14 @@ public class GitHubService : IGitHubService
             }
 
             return content;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            var message = firstException is HttpRequestException { StatusCode: HttpStatusCode.Forbidden }
+                ? $"{context}Both raw.githubusercontent.com and GitHub Contents API returned 403 (rate limit exceeded)."
+                : $"{context}GitHub Contents API returned 403 (rate limit exceeded) after raw.githubusercontent.com fallback.";
+            logAction(message);
+            throw new InvalidOperationException(message, ex);
         }
     }
 
@@ -251,12 +270,14 @@ public class GitHubService : IGitHubService
 
                 switch (response.StatusCode)
                 {
-                    // Handle the 500 error specifically for large repos (like PS2)
                     case HttpStatusCode.InternalServerError:
                         logAction($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
                         return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction, cancellationToken);
+                    case HttpStatusCode.Forbidden:
+                        logAction($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");
+                        continue;
                     case HttpStatusCode.NotFound:
-                        continue; // Try next branch
+                        continue;
                 }
 
                 response.EnsureSuccessStatusCode();
@@ -484,10 +505,11 @@ public class GitHubService : IGitHubService
     {
         if (ex is HttpRequestException httpEx)
         {
-            // Don't retry on client errors (4xx) except 408 (Request Timeout) and 429 (Too Many Requests)
             if (httpEx.StatusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError)
             {
-                return httpEx.StatusCode is HttpStatusCode.RequestTimeout or (HttpStatusCode)429;
+                return httpEx.StatusCode is HttpStatusCode.RequestTimeout
+                    or HttpStatusCode.Forbidden
+                    or (HttpStatusCode)429;
             }
 
             return httpEx.InnerException is System.Net.Sockets.SocketException;
@@ -536,11 +558,9 @@ public class GitHubService : IGitHubService
             }
         }
 
-        // Validate we found some systems
         if (map.Count == 0)
         {
-            _ = BugReportService.LogErrorAsync(new InvalidOperationException("No systems were parsed from .gitmodules content."),
-                $"{context}ParseGitmodules returned empty result.");
+            Console.WriteLine($"{context}No systems were parsed from .gitmodules content.");
         }
 
         return map;

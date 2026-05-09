@@ -449,7 +449,10 @@ public class MainViewModel : ViewModelBase, IDisposable
                 // 1. Validate folders exist before reading
                 if (!DirectoryExists(RomFolderPath) || !DirectoryExists(CoverFolderPath))
                 {
-                    const string errorMsg = "ROM folder or Cover folder does not exist.";
+                    var missingFolders = new List<string>();
+                    if (!DirectoryExists(RomFolderPath)) missingFolders.Add($"ROM folder: {RomFolderPath}");
+                    if (!DirectoryExists(CoverFolderPath)) missingFolders.Add($"Cover folder: {CoverFolderPath}");
+                    var errorMsg = $"The following folders do not exist:\n{string.Join("\n", missingFolders)}";
                     Log($"[MainViewModel.PrepareDownloadAsync] {errorMsg}");
                     throw new DirectoryNotFoundException(errorMsg);
                 }
@@ -533,12 +536,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             Log("Preparation cancelled.");
-            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Preparation cancelled by user."), "Operation was cancelled.");
         }
         catch (UnauthorizedAccessException ex)
         {
             Log($"[MainViewModel.PrepareDownloadAsync] Access denied to folder: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "Unauthorized access to ROM or Cover folder.");
         }
         catch (Exception ex)
         {
@@ -630,9 +631,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 if (data != null)
                 {
                     // Check for disk space before writing
-                    if (GetAvailableFreeSpace(CoverFolderPath) < 10 * 1024 * 1024) // 10MB threshold
+                    if (GetAvailableFreeSpace(CoverFolderPath) < 10 * 1024 * 1024)
                     {
-                        throw new IOException("Low disk space detected. Download aborted.");
+                        var freeSpace = GetAvailableFreeSpace(CoverFolderPath);
+                        var freeSpaceMb = freeSpace / (1024.0 * 1024.0);
+                        throw new IOException($"Low disk space detected. Only {freeSpaceMb.ToString("F1", CultureInfo.InvariantCulture)} MB available ({CoverFolderPath}). Download aborted.");
                     }
 
                     await WriteAllBytesAsync(savePath, data, token);
@@ -656,12 +659,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             Log("Download cancelled by user.");
-            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Download cancelled by user."), "Operation was cancelled.");
         }
         catch (IOException ex)
         {
             Log($"[MainViewModel.DownloadCoversAsync] File I/O error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "IOException during file operations.");
         }
         catch (Exception ex)
         {

@@ -35,14 +35,16 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void ParseGitmodulesEmptyInputThrowsException()
+    public void ParseGitmodulesEmptyInputReturnsEmptyDictionary()
     {
         const string input = "";
 
         var method = typeof(GitHubService).GetMethod("ParseGitmodules", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
 
-        Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [input]));
+        var result = method.Invoke(null, [input]);
+        var map = Assert.IsType<Dictionary<string, string>>(result);
+        Assert.Empty(map);
     }
 
     [Fact]
@@ -230,7 +232,7 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void IsTransientErrorReturnsFalseFor403()
+    public void IsTransientErrorReturnsTrueFor403()
     {
         var method = typeof(GitHubService).GetMethod("IsTransientError", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
@@ -238,7 +240,7 @@ public class GitHubServiceTests
         var ex = new HttpRequestException("Rate limit exceeded", null, HttpStatusCode.Forbidden);
         var result = (bool)(method.Invoke(null, [ex]) ?? throw new InvalidOperationException());
 
-        Assert.False(result);
+        Assert.True(result);
     }
 
     #endregion
