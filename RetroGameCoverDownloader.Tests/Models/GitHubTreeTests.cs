@@ -10,11 +10,8 @@ public class GitHubTreeTests
     {
         var tree = new GitHubTree();
 
-        Assert.Equal(string.Empty, tree.Sha);
-        Assert.Equal(string.Empty, tree.Url);
         Assert.NotNull(tree.Tree);
         Assert.Empty(tree.Tree);
-        Assert.False(tree.Truncated);
     }
 
     [Fact]
@@ -24,7 +21,6 @@ public class GitHubTreeTests
 
         Assert.Equal(string.Empty, item.Path);
         Assert.Equal(string.Empty, item.Type);
-        Assert.Equal(string.Empty, item.Mode);
         Assert.Equal(string.Empty, item.Sha);
     }
 

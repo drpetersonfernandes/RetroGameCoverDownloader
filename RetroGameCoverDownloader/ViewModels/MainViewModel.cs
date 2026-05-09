@@ -733,18 +733,18 @@ public class MainViewModel : ViewModelBase, IDisposable
             _countdownTimer.Stop();
             _countdownTimer.Tick -= OnTimerTick;
         }
-        catch
+        catch (Exception ex)
         {
-            /* ignore */
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error stopping countdown timer.");
         }
 
         try
         {
             _gitHubService.RateLimitHit -= OnRateLimitHit;
         }
-        catch
+        catch (Exception ex)
         {
-            /* ignore */
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error unsubscribing from rate limit events.");
         }
 
         try
@@ -753,18 +753,18 @@ public class MainViewModel : ViewModelBase, IDisposable
             _cts?.Dispose();
             _cts = null;
         }
-        catch
+        catch (Exception ex)
         {
-            /* ignore */
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error disposing cancellation token source.");
         }
 
         try
         {
             _gitHubService.Dispose();
         }
-        catch
+        catch (Exception ex)
         {
-            /* ignore */
+            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error disposing GitHub service.");
         }
 
         GC.SuppressFinalize(this);

@@ -83,7 +83,7 @@ public static partial class UpdateCheckerService
         }
     }
 
-    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3)
+    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3, CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
@@ -94,7 +94,7 @@ public static partial class UpdateCheckerService
             catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
-                await Task.Delay(delay);
+                await Task.Delay(delay, cancellationToken);
             }
         }
 

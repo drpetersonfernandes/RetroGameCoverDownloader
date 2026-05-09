@@ -51,9 +51,9 @@ public static class ApplicationStatsService
             using var response = await HttpClientInstance.SendAsync(request);
             // Intentionally ignoring the response; fire-and-forget telemetry.
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently ignore any telemetry failures so the app launch is never blocked.
+            _ = BugReportService.LogErrorAsync(ex, "[ApplicationStatsService] Failed to track launch telemetry.");
         }
     }
 }

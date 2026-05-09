@@ -75,7 +75,9 @@ public partial class MainWindow
             _ = BugReportService.LogErrorAsync(ex, "[ExitMenuItem_Click] Error during cleanup.");
         }
 
-        Close();
+        System.Windows.Application.Current.Shutdown();
+
+        _ = Task.Delay(3000).ContinueWith(static _ => Environment.Exit(0));
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

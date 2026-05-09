@@ -12,6 +12,8 @@ namespace RetroGameCoverDownloader;
 /// </summary>
 public partial class App
 {
+    private static int _shutdownGuard;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -110,19 +112,25 @@ public partial class App
                 MessageBoxImage.Error);
 
             Current.Shutdown();
+            Environment.Exit(1);
         }
     }
 
     private static void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
+        e.Handled = true;
+
+        if (Interlocked.Exchange(ref _shutdownGuard, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
-            // Log the exception
             BugReportService.LogErrorSync(e.Exception, "An unhandled dispatcher exception occurred.");
         }
         catch (Exception logEx)
         {
-            // If bug reporting fails, at least try to log to a critical file
             try
             {
                 var criticalMsg = $"[{DateTime.Now}] CRITICAL: BugReportService failed during unhandled exception. Original: {e.Exception?.Message}. Logging error: {logEx.Message}";
@@ -134,23 +142,28 @@ public partial class App
             }
         }
 
-        // Notify the user
-        MessageBox.Show(
-            "An unexpected error occurred. The application will now close. A bug report has been saved to error.log and sent to the developer.",
-            "Unhandled Exception",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        try
+        {
+            MessageBox.Show(
+                "An unexpected error occurred. The application will now close. A bug report has been saved to error.log and sent to the developer.",
+                "Unhandled Exception",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        catch
+        {
+            /* Ignore message box failure */
+        }
 
-        // Prevent default unhandled exception processing and shut down
-        e.Handled = true;
         Current.Shutdown();
+        Environment.Exit(1);
     }
 
     private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         try
         {
-            var exception = e.ExceptionObject as Exception ?? new Exception($"Non-exception object thrown: {e.ExceptionObject}");
+            var exception = e.ExceptionObject as Exception ?? new InvalidOperationException($"Non-exception object thrown: {e.ExceptionObject}");
             BugReportService.LogErrorSync(exception, "An unhandled AppDomain exception occurred.");
         }
         catch (Exception logEx)
@@ -166,7 +179,6 @@ public partial class App
             }
         }
 
-        // For non-UI thread exceptions, we can't show a message box reliably, but we'll try
         try
         {
             MessageBox.Show(
@@ -180,10 +192,10 @@ public partial class App
             /* Ignore message box failure */
         }
 
-        // If the exception is terminal, the runtime will terminate the process anyway
         if (e.IsTerminating)
         {
             Current.Shutdown();
+            Environment.Exit(1);
         }
     }
 

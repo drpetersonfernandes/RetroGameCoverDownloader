@@ -307,7 +307,7 @@ public class GitHubService : IGitHubService
                     // Map paths to include the folder prefix so the rest of the app logic remains compatible
                     var files = folderTree.Tree
                         .Where(static i => i.Type == "blob")
-                        .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type, Mode = i.Mode })
+                        .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type })
                         .ToList();
 
                     logAction($"Successfully retrieved {files.Count} files via fallback method.");

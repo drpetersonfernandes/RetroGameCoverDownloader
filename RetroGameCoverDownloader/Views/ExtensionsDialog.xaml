@@ -17,7 +17,7 @@
         <TextBlock Grid.Row="0" Text="File Extensions" Style="{StaticResource TitleTextStyle}"
                    ToolTip="Configure which file types are recognized as ROMs"/>
 
-        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,10"
+        <TextBlock Grid.Row="1" Style="{StaticResource DialogDescriptionStyle}"
                    ToolTip="Explanation of file extension filtering">
             Only files with these extensions will be scanned as ROMs.
             Add or remove extensions as needed. Leave the list empty to scan all files.
@@ -31,7 +31,8 @@
             <TextBox x:Name="NewExtensionBox" Style="{StaticResource TextInputStyle}"
                      Margin="0,0,10,0" ToolTip="Type a new file extension to add (e.g., .nes)"/>
             <Button Grid.Column="1" x:Name="AddButton" Content="Add" Click="AddButton_Click"
-                    Width="60" Height="30" ToolTip="Add the entered extension to the list"/>
+                    Style="{StaticResource SmallButtonStyle}"
+                    ToolTip="Add the entered extension to the list"/>
         </Grid>
 
         <ListBox Grid.Row="3" x:Name="ExtensionsListBox" Margin="0,0,0,10"
