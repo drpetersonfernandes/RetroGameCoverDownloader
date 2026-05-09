@@ -35,7 +35,9 @@ public class MainViewModelTests
 
     private class FakeGitHubService : IGitHubService
     {
+#pragma warning disable CS0067
         public event Action<TimeSpan>? RateLimitHit;
+#pragma warning restore CS0067
         public Func<Action<string>, CancellationToken, Task<List<SystemConfig>>>? OnGetAvailableSystemsAsync { get; set; }
         public Func<SystemConfig, Action<string>, CancellationToken, Task<(string, List<GitHubTreeItem>)>>? OnGetSystemFilesAsync { get; set; }
         public Func<string, Action<string>?, CancellationToken, Task<byte[]?>>? OnDownloadFileAsync { get; set; }

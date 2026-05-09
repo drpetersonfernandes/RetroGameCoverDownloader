@@ -11,8 +11,7 @@ namespace RetroGameCoverDownloader.Managers;
 public static class SettingsManager
 {
     internal static string SettingsFilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RetroGameCoverDownloader",
+        AppDomain.CurrentDomain.BaseDirectory,
         "settings.xml");
 
     public static AppSettings LoadSettings()

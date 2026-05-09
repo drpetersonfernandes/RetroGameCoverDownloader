@@ -14,7 +14,6 @@ public class GitHubService : IGitHubService
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const string MainRepoOwner = "libretro-thumbnails";
     private const string MainRepoName = "libretro-thumbnails";
-    private const string MainRepoBranch = "master";
     private static readonly char[] Separator = ['\r', '\n'];
 
     // Circuit breaker state (thread-safe counters for 503 tracking)
@@ -106,71 +105,125 @@ public class GitHubService : IGitHubService
 
     public async Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default)
     {
-        var systems = new List<SystemConfig>();
         const string context = "[GetAvailableSystemsAsync] ";
 
-        try
+        var branches = new[] { "master", "main" };
+        Exception? lastException = null;
+
+        foreach (var branch in branches)
         {
-            logAction("Fetching .gitmodules...");
-            const string gitmodulesUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{MainRepoBranch}/.gitmodules";
-
-            await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var gitmodulesContent = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(gitmodulesUrl, cancellationToken), cancellationToken: cancellationToken);
-            var repoNameMap = ParseGitmodules(gitmodulesContent);
-
-            logAction("Fetching main repository tree...");
-            const string mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{MainRepoBranch}?recursive=1";
-
-            await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), cancellationToken: cancellationToken);
-            var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
-
-            if (tree?.Tree != null)
+            try
             {
-                foreach (var item in tree.Tree.Where(static i => i.Type == "commit"))
+                var systems = await TryFetchSystemsForBranchAsync(branch, logAction, cancellationToken);
+                if (systems.Count > 0)
                 {
-                    if (repoNameMap.TryGetValue(item.Path, out var systemRepoName))
-                    {
-                        systems.Add(new SystemConfig(item.Path, MainRepoOwner, systemRepoName, "Named_Boxarts"));
-                    }
+                    await SaveSystemsToCacheAsync(systems);
+                    return systems;
                 }
             }
-
-            if (systems.Count > 0)
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
             {
-                await SaveSystemsToCacheAsync(systems);
+                var errorMsg = $"{context}GitHub API rate limit exceeded on branch '{branch}'. {ex.Message}";
+                logAction(errorMsg);
+
+                var cached = await LoadSystemsFromCacheAsync();
+                if (cached != null)
+                {
+                    logAction("Using cached system list due to rate limiting.");
+                    return cached;
+                }
+
+                logAction("No cached system list available.");
+                throw;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                lastException = ex;
+                logAction($"{context}Branch '{branch}' not found (404), trying next branch...");
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                logAction($"{context}Error fetching systems on branch '{branch}': {ex.Message}");
             }
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+
+        var fallbackCached = await LoadSystemsFromCacheAsync();
+        if (fallbackCached != null)
         {
-            var errorMsg = $"{context}GitHub API rate limit exceeded. {ex.Message}";
-            logAction(errorMsg);
-
-            var cached = await LoadSystemsFromCacheAsync();
-            if (cached != null)
-            {
-                logAction("Using cached system list due to rate limiting.");
-                return cached;
-            }
-
-            logAction("No cached system list available.");
+            logAction("Using cached system list due to error.");
+            return fallbackCached;
         }
-        catch (Exception ex)
+
+        if (lastException != null)
         {
-            var errorMsg = $"{context}Error fetching systems: {ex.Message}";
-            logAction(errorMsg);
+            await BugReportService.LogErrorAsync(lastException, $"{context}Failed to fetch available systems from GitHub.");
+        }
 
-            var cached = await LoadSystemsFromCacheAsync();
-            if (cached != null)
+        return new List<SystemConfig>();
+    }
+
+    private async Task<List<SystemConfig>> TryFetchSystemsForBranchAsync(string branch, Action<string> logAction, CancellationToken cancellationToken)
+    {
+        var systems = new List<SystemConfig>();
+
+        logAction($"Fetching .gitmodules from branch '{branch}'...");
+        var gitmodulesContent = await FetchGitmodulesAsync(branch, logAction, cancellationToken);
+        var repoNameMap = ParseGitmodules(gitmodulesContent);
+
+        logAction("Fetching main repository tree...");
+        var mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{branch}?recursive=1";
+
+        await _rateLimiter.WaitForSlotAsync(cancellationToken);
+        var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), cancellationToken: cancellationToken);
+        var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
+
+        if (tree?.Tree != null)
+        {
+            foreach (var item in tree.Tree.Where(static i => i.Type == "commit"))
             {
-                logAction("Using cached system list due to error.");
-                return cached;
+                if (repoNameMap.TryGetValue(item.Path, out var systemRepoName))
+                {
+                    systems.Add(new SystemConfig(item.Path, MainRepoOwner, systemRepoName, "Named_Boxarts"));
+                }
             }
-
-            await BugReportService.LogErrorAsync(ex, $"{context}Failed to fetch available systems from GitHub.");
         }
 
         return systems;
+    }
+
+    private async Task<string> FetchGitmodulesAsync(string branch, Action<string> logAction, CancellationToken cancellationToken)
+    {
+        var rawUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{branch}/.gitmodules";
+
+        try
+        {
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            return await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logAction($"[FetchGitmodulesAsync] raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
+
+            var contentsApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/contents/.gitmodules?ref={branch}";
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            var json = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), cancellationToken: cancellationToken);
+
+            using var doc = JsonDocument.Parse(json);
+            var content = doc.RootElement.GetProperty("content").GetString();
+            var encoding = doc.RootElement.TryGetProperty("encoding", out var encProp) ? encProp.GetString() : "base64";
+
+            if (string.IsNullOrEmpty(content))
+                throw new InvalidOperationException("GitHub Contents API returned empty content for .gitmodules.");
+
+            if (string.Equals(encoding, "base64", StringComparison.OrdinalIgnoreCase))
+            {
+                var bytes = Convert.FromBase64String(content.Replace("\n", "").Replace("\r", ""));
+                return System.Text.Encoding.UTF8.GetString(bytes);
+            }
+
+            return content;
+        }
     }
 
     public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction, CancellationToken cancellationToken = default)
@@ -477,9 +530,8 @@ public class GitHubService : IGitHubService
         // Validate we found some systems
         if (map.Count == 0)
         {
-            var ex = new InvalidOperationException("No systems were parsed from .gitmodules content.");
-            _ = BugReportService.LogErrorAsync(ex, $"{context}ParseGitmodules returned empty result.");
-            throw ex;
+            _ = BugReportService.LogErrorAsync(new InvalidOperationException("No systems were parsed from .gitmodules content."),
+                $"{context}ParseGitmodules returned empty result.");
         }
 
         return map;

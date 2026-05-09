@@ -1,0 +1,64 @@
+<Window x:Class="RetroGameCoverDownloader.Views.ExtensionsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="File Extensions" Height="480" Width="440"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        ToolTip="Manage file extensions to scan in the ROM folder">
+    <Grid Margin="15" ToolTip="File extension management form">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="File Extensions" Style="{StaticResource TitleTextStyle}"
+                   ToolTip="Configure which file types are recognized as ROMs"/>
+
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,10"
+                   ToolTip="Explanation of file extension filtering">
+            Only files with these extensions will be scanned as ROMs.
+            Add or remove extensions as needed. Leave the list empty to scan all files.
+        </TextBlock>
+
+        <Grid Grid.Row="2" Margin="0,0,0,10" ToolTip="Add new extension input area">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="NewExtensionBox" Style="{StaticResource TextInputStyle}"
+                     Margin="0,0,10,0" ToolTip="Type a new file extension to add (e.g., .nes)"/>
+            <Button Grid.Column="1" x:Name="AddButton" Content="Add" Click="AddButton_Click"
+                    Width="60" Height="30" ToolTip="Add the entered extension to the list"/>
+        </Grid>
+
+        <ListBox Grid.Row="3" x:Name="ExtensionsListBox" Margin="0,0,0,10"
+                 SelectionMode="Single"
+                 ToolTip="List of file extensions currently recognized as ROMs"/>
+
+        <Grid Grid.Row="4" Margin="0,0,0,15" ToolTip="Remove and list management actions">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="1" x:Name="RemoveButton" Content="Remove" Click="RemoveButton_Click"
+                    Style="{StaticResource DialogButtonStyle}"
+                    ToolTip="Remove the selected extension from the list"/>
+            <Button Grid.Column="2" x:Name="ResetButton" Content="Reset Defaults" Click="ResetButton_Click"
+                    Style="{StaticResource DialogButtonStyle}" Width="110"
+                    ToolTip="Restore the default list of file extensions"/>
+        </Grid>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right"
+                    ToolTip="Dialog action buttons">
+            <Button Content="Cancel" Click="CancelButton_Click" Style="{StaticResource DialogButtonStyle}"
+                    ToolTip="Discard changes and close this dialog"/>
+            <Button Content="Save" Click="SaveButton_Click" Style="{StaticResource DialogButtonStyle}"
+                    IsDefault="True" Margin="0"
+                    ToolTip="Save file extension changes"/>
+        </StackPanel>
+    </Grid>
+</Window>

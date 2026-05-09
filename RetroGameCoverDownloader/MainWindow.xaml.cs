@@ -141,6 +141,77 @@ public partial class MainWindow
         }
     }
 
+    private void GitHubTokenMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new TokenDialog { Owner = this };
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var settings = SettingsManager.LoadSettings();
+                    settings.GitHubToken = dialog.Token;
+                    SettingsManager.SaveSettings(settings);
+
+                    var viewModel = DataContext as ViewModels.MainViewModel;
+                    viewModel?.UpdateToken(dialog.Token);
+                    viewModel?.Log("[MainWindow] GitHub token saved successfully.");
+                    MessageBox.Show("GitHub token saved successfully.",
+                        "GitHub Token", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Failed to save token. Please try again.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    _ = BugReportService.LogErrorAsync(ex, "[GitHubTokenMenuItem_Click] Failed to save token.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("An error occurred while opening the token dialog.", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            _ = BugReportService.LogErrorAsync(ex, "[GitHubTokenMenuItem_Click] Exception opening token dialog.");
+        }
+    }
+
+    private void FileExtensionsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new ExtensionsDialog { Owner = this };
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var settings = SettingsManager.LoadSettings();
+                    settings.FileExtensions = dialog.FileExtensions;
+                    SettingsManager.SaveSettings(settings);
+
+                    var viewModel = DataContext as ViewModels.MainViewModel;
+                    viewModel?.UpdateFileExtensions(dialog.FileExtensions);
+
+                    viewModel?.Log($"[MainWindow] File extensions updated. {dialog.FileExtensions.Count} extension(s) configured.");
+                    MessageBox.Show($"File extensions saved. {dialog.FileExtensions.Count} extension(s) configured.",
+                        "File Extensions", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Failed to save file extensions. Please try again.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    _ = BugReportService.LogErrorAsync(ex, "[FileExtensionsMenuItem_Click] Failed to save file extensions.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("An error occurred while opening file extensions settings.", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            _ = BugReportService.LogErrorAsync(ex, "[FileExtensionsMenuItem_Click] Exception opening extensions dialog.");
+        }
+    }
+
     private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
     {
         try

@@ -19,6 +19,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
     private TimeSpan _remainingWaitTime;
     private string? _currentToken;
+    internal HashSet<string> FileExtensions = new(StringComparer.OrdinalIgnoreCase);
 
     // Data
     public ObservableCollection<SystemConfig> Systems { get; } = [];
@@ -59,6 +60,12 @@ public class MainViewModel : ViewModelBase, IDisposable
     internal MainViewModel(AppSettings settings, IGitHubService? gitHubService, bool suppressStartup)
     {
         _currentToken = settings.GitHubToken;
+
+        // Load file extensions from settings
+        if (settings.FileExtensions.Count > 0)
+        {
+            FileExtensions = new HashSet<string>(settings.FileExtensions, StringComparer.OrdinalIgnoreCase);
+        }
 
         // Initialize the timer first so Log is safe
         _countdownTimer = new DispatcherTimer
@@ -230,6 +237,14 @@ public class MainViewModel : ViewModelBase, IDisposable
             Log($"[UpdateProxySettings] Error updating service: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update proxy settings at runtime.");
         }
+    }
+
+    public void UpdateFileExtensions(List<string> extensions)
+    {
+        FileExtensions = extensions.Count > 0
+            ? new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Log($"[MainViewModel] File extension filter updated. {(extensions.Count > 0 ? $"Filtering by {extensions.Count} extension(s)." : "No filter applied.")}");
     }
 
     // 4. Handle the event from RateLimiter
@@ -461,6 +476,19 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 Log($"Found {githubFiles.Count} files in repository (Branch: {branch}).");
 
+                // Filter out .gitkeep and other non-cover dot-files
+                githubFiles = githubFiles
+                    .Where(static g =>
+                    {
+                        var name = Path.GetFileName(g.Path);
+                        return !string.IsNullOrEmpty(name)
+                               && !name.StartsWith('.')
+                               && !string.IsNullOrEmpty(Path.GetFileNameWithoutExtension(name));
+                    })
+                    .ToList();
+
+                Log($"After filtering non-cover files: {githubFiles.Count} files.");
+
                 // 5. Match Missing vs GitHub
                 // GitHub paths are like "Named_Boxarts/Game Name.png"
                 // We match "Game Name"
@@ -557,6 +585,15 @@ public class MainViewModel : ViewModelBase, IDisposable
                 if (string.IsNullOrWhiteSpace(item.DownloadUrl))
                 {
                     Log($"[DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
+                    ProgressValue++;
+                    continue;
+                }
+
+                var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
+                if (FileExists(savePath))
+                {
+                    Log($"[DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
+                    ProgressValue++;
                     continue;
                 }
 
@@ -573,7 +610,6 @@ public class MainViewModel : ViewModelBase, IDisposable
                         throw new IOException("Low disk space detected. Download aborted.");
                     }
 
-                    var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
                     await WriteAllBytesAsync(savePath, data, token);
 
                     // Verify file was written
@@ -751,7 +787,10 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     protected virtual string[] GetFiles(string path)
     {
-        return Directory.GetFiles(path);
+        var files = Directory.GetFiles(path);
+        if (FileExtensions.Count == 0) return files;
+
+        return files.Where(f => FileExtensions.Contains(Path.GetExtension(f))).ToArray();
     }
 
     protected virtual Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken)

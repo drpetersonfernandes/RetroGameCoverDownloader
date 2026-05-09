@@ -47,6 +47,45 @@
                         </Viewbox>
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="_GitHub Token" Click="GitHubTokenMenuItem_Click"
+                          ToolTip="Enter or change your GitHub personal access token">
+                    <MenuItem.Icon>
+                        <Viewbox Width="16" Height="16" ToolTip="GitHub token icon">
+                            <Canvas Width="24" Height="24" ToolTip="GitHub token icon canvas">
+                                <Ellipse Canvas.Left="5" Canvas.Top="5" Width="14" Height="14"
+                                         Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"
+                                         ToolTip="Key ring"/>
+                                <Path Data="M12,3 L12,10 L10,8 L9,10 L12,14 L15,10 L14,8 L12,10"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"
+                                      ToolTip="Key teeth"/>
+                                <Line X1="9" Y1="17" X2="15" Y2="17"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5"
+                                      ToolTip="Key base"/>
+                            </Canvas>
+                        </Viewbox>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_File Extensions" Click="FileExtensionsMenuItem_Click"
+                          ToolTip="Manage file extensions scanned as ROMs">
+                    <MenuItem.Icon>
+                        <Viewbox Width="16" Height="16" ToolTip="File extensions icon">
+                            <Canvas Width="24" Height="24" ToolTip="File extensions icon canvas">
+                                <Path Data="M4,2 L18,2 L18,22 L4,22 Z"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"
+                                      ToolTip="File outline"/>
+                                <Line X1="7" Y1="6" X2="17" Y2="6"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5"
+                                      ToolTip="Text line 1"/>
+                                <Line X1="7" Y1="10" X2="17" Y2="10"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5"
+                                      ToolTip="Text line 2"/>
+                                <Line X1="7" Y1="14" X2="13" Y2="14"
+                                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5"
+                                      ToolTip="Text line 3"/>
+                            </Canvas>
+                        </Viewbox>
+                    </MenuItem.Icon>
+                </MenuItem>
                 <Separator ToolTip="Separator"/>
                 <MenuItem Header="_Exit" Click="ExitMenuItem_Click"
                           ToolTip="Close the application">

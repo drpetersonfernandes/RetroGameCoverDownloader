@@ -17,10 +17,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.7" />
-    </ItemGroup>
-
-    <ItemGroup>
       <None Remove="images\about.png" />
       <Resource Include="images\about.png" />
       <None Remove="images\exit.png" />
