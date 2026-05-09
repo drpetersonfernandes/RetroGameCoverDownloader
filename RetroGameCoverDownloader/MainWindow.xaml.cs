@@ -39,12 +39,12 @@ public partial class MainWindow
 
                         // Log successful token save (without exposing token) and update the running service
                         _viewModel.UpdateToken(dialog.Token);
-                        _viewModel.Log("[OnLoaded] GitHub token saved successfully.");
+                        _viewModel.Log("[MainWindow.OnLoaded] GitHub token saved successfully.");
                     }
                     catch (Exception ex)
                     {
                         MessageBox.Show("Failed to save token. The application may have limited functionality.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        _ = BugReportService.LogErrorAsync(ex, "[OnLoaded] Failed to save token after dialog.");
+                        _ = BugReportService.LogErrorAsync(ex, "Failed to save token after dialog.");
                     }
                 }
             }
@@ -53,7 +53,7 @@ public partial class MainWindow
         {
             // Show user-friendly error but don't crash
             MessageBox.Show("An error occurred during startup. Some features may not work correctly.", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-            _ = BugReportService.LogErrorAsync(ex, "[OnLoaded] Exception during token check on window load.");
+            _ = BugReportService.LogErrorAsync(ex, "Exception during token check on window load.");
         }
     }
 
@@ -72,7 +72,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ExitMenuItem_Click] Error during cleanup.");
+            _ = BugReportService.LogErrorAsync(ex, "Error during cleanup.");
         }
 
         System.Windows.Application.Current.Shutdown();
@@ -89,7 +89,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainWindow_Closing] Error during cleanup.");
+            _ = BugReportService.LogErrorAsync(ex, "Error during cleanup.");
         }
     }
 
@@ -131,7 +131,7 @@ public partial class MainWindow
                 {
                     MessageBox.Show("Failed to save proxy settings. Please try again.", "Error",
                         MessageBoxButton.OK, MessageBoxImage.Error);
-                    _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsMenuItem_Click] Failed to save proxy settings.");
+                    _ = BugReportService.LogErrorAsync(ex, "Failed to save proxy settings.");
                 }
             }
         }
@@ -139,7 +139,7 @@ public partial class MainWindow
         {
             MessageBox.Show("An error occurred while opening proxy settings.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
-            _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsMenuItem_Click] Exception opening proxy settings dialog.");
+            _ = BugReportService.LogErrorAsync(ex, "Exception opening proxy settings dialog.");
         }
     }
 
@@ -158,7 +158,7 @@ public partial class MainWindow
 
                     var viewModel = DataContext as ViewModels.MainViewModel;
                     viewModel?.UpdateToken(dialog.Token);
-                    viewModel?.Log("[MainWindow] GitHub token saved successfully.");
+                    viewModel?.Log("[MainWindow.GitHubTokenMenuItem_Click] GitHub token saved successfully.");
                     MessageBox.Show("GitHub token saved successfully.",
                         "GitHub Token", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -166,7 +166,7 @@ public partial class MainWindow
                 {
                     MessageBox.Show("Failed to save token. Please try again.", "Error",
                         MessageBoxButton.OK, MessageBoxImage.Error);
-                    _ = BugReportService.LogErrorAsync(ex, "[GitHubTokenMenuItem_Click] Failed to save token.");
+                    _ = BugReportService.LogErrorAsync(ex, "Failed to save token.");
                 }
             }
         }
@@ -174,7 +174,7 @@ public partial class MainWindow
         {
             MessageBox.Show("An error occurred while opening the token dialog.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
-            _ = BugReportService.LogErrorAsync(ex, "[GitHubTokenMenuItem_Click] Exception opening token dialog.");
+            _ = BugReportService.LogErrorAsync(ex, "Exception opening token dialog.");
         }
     }
 
@@ -194,7 +194,7 @@ public partial class MainWindow
                     var viewModel = DataContext as ViewModels.MainViewModel;
                     viewModel?.UpdateFileExtensions(dialog.FileExtensions);
 
-                    viewModel?.Log($"[MainWindow] File extensions updated. {dialog.FileExtensions.Count} extension(s) configured.");
+                    viewModel?.Log($"[MainWindow.FileExtensionsMenuItem_Click] File extensions updated. {dialog.FileExtensions.Count} extension(s) configured.");
                     MessageBox.Show($"File extensions saved. {dialog.FileExtensions.Count} extension(s) configured.",
                         "File Extensions", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -202,7 +202,7 @@ public partial class MainWindow
                 {
                     MessageBox.Show("Failed to save file extensions. Please try again.", "Error",
                         MessageBoxButton.OK, MessageBoxImage.Error);
-                    _ = BugReportService.LogErrorAsync(ex, "[FileExtensionsMenuItem_Click] Failed to save file extensions.");
+                    _ = BugReportService.LogErrorAsync(ex, "Failed to save file extensions.");
                 }
             }
         }
@@ -210,7 +210,7 @@ public partial class MainWindow
         {
             MessageBox.Show("An error occurred while opening file extensions settings.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
-            _ = BugReportService.LogErrorAsync(ex, "[FileExtensionsMenuItem_Click] Exception opening extensions dialog.");
+            _ = BugReportService.LogErrorAsync(ex, "Exception opening extensions dialog.");
         }
     }
 

@@ -10,13 +10,18 @@ namespace RetroGameCoverDownloader.Managers;
 
 public static class SettingsManager
 {
-    internal static string SettingsFilePath = Path.Combine(
+    public static string DefaultSettingsFilePath { get; } = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory,
         "settings.xml");
 
     public static AppSettings LoadSettings()
     {
-        if (!File.Exists(SettingsFilePath))
+        return LoadSettings(DefaultSettingsFilePath);
+    }
+
+    public static AppSettings LoadSettings(string filePath)
+    {
+        if (!File.Exists(filePath))
         {
             return new AppSettings();
         }
@@ -26,17 +31,15 @@ public static class SettingsManager
         try
         {
             var serializer = new XmlSerializer(typeof(AppSettings));
-            // Create XmlReaderSettings to disable DTD processing and XmlResolver for security
             var xmlReaderSettings = new XmlReaderSettings
             {
                 DtdProcessing = DtdProcessing.Prohibit,
                 XmlResolver = null
             };
-            using var reader = new StreamReader(SettingsFilePath); // Use StreamReader to read file content
-            using var xmlReader = XmlReader.Create(reader, xmlReaderSettings); // Create XmlReader with secure settings
-            var settings = (serializer.Deserialize(xmlReader) as AppSettings) ?? new AppSettings(); // Deserialize using the secure XmlReader
+            using var reader = new StreamReader(filePath);
+            using var xmlReader = XmlReader.Create(reader, xmlReaderSettings);
+            var settings = (serializer.Deserialize(xmlReader) as AppSettings) ?? new AppSettings();
 
-            // Decrypt proxy password if present
             if (!string.IsNullOrEmpty(settings.ProxyPasswordEncrypted))
             {
                 try
@@ -45,12 +48,10 @@ public static class SettingsManager
                 }
                 catch (Exception ex) when (ex is CryptographicException or FormatException)
                 {
-                    // Value may be an old plain-text password; migrate transparently
                     settings.ProxyPassword = settings.ProxyPasswordEncrypted;
                 }
             }
 
-            // Decrypt GitHub token if present
             if (!string.IsNullOrEmpty(settings.GitHubTokenEncrypted))
             {
                 try
@@ -59,7 +60,6 @@ public static class SettingsManager
                 }
                 catch (Exception ex) when (ex is CryptographicException or FormatException)
                 {
-                    // Value may be an old plain-text token; migrate transparently
                     settings.GitHubToken = settings.GitHubTokenEncrypted;
                 }
             }
@@ -76,16 +76,20 @@ public static class SettingsManager
 
     public static void SaveSettings(AppSettings settings)
     {
+        SaveSettings(settings, DefaultSettingsFilePath);
+    }
+
+    public static void SaveSettings(AppSettings settings, string filePath)
+    {
         const string context = "[SettingsManager.SaveSettings] ";
         try
         {
-            var directory = Path.GetDirectoryName(SettingsFilePath);
+            var directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // Encrypt proxy password before saving
             if (!string.IsNullOrEmpty(settings.ProxyPassword))
             {
                 settings.ProxyPasswordEncrypted = EncryptString(settings.ProxyPassword);
@@ -95,7 +99,6 @@ public static class SettingsManager
                 settings.ProxyPasswordEncrypted = null;
             }
 
-            // Encrypt GitHub token before saving
             if (!string.IsNullOrEmpty(settings.GitHubToken))
             {
                 settings.GitHubTokenEncrypted = EncryptString(settings.GitHubToken);
@@ -106,13 +109,13 @@ public static class SettingsManager
             }
 
             var serializer = new XmlSerializer(typeof(AppSettings));
-            using var writer = new StreamWriter(SettingsFilePath);
+            using var writer = new StreamWriter(filePath);
             serializer.Serialize(writer, settings);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"{context}Error: Could not save settings to {SettingsFilePath}. Error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {SettingsFilePath}.");
+            Console.WriteLine($"{context}Error: Could not save settings to {filePath}. Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {filePath}.");
             throw;
         }
     }

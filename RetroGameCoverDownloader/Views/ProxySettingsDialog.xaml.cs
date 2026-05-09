@@ -36,7 +36,7 @@ public partial class ProxySettingsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsDialog] Failed to load current settings.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to load current settings.");
         }
     }
 
@@ -94,7 +94,7 @@ public partial class ProxySettingsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ProxySettingsDialog.SaveButton_Click] Failed to save proxy settings.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to save proxy settings.");
             MessageBox.Show("An error occurred while saving the proxy settings. Please try again.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }

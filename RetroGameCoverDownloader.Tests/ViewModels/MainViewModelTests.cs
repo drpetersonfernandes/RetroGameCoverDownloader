@@ -428,17 +428,16 @@ public class MainViewModelTests
     {
         var oldService = new FakeGitHubService();
         var newService = new FakeGitHubService();
-        var vm = new TestableMainViewModelWithFactory(oldService, newService);
+        var tempPath = CreateTempSettingsFile();
+        var vm = new TestableMainViewModelWithFactory(oldService, newService, tempPath);
 
-        var originalPath = SettingsManager.SettingsFilePath;
         try
         {
-            SettingsManager.SettingsFilePath = CreateTempSettingsFile();
             vm.UpdateToken("new-token");
         }
         finally
         {
-            SettingsManager.SettingsFilePath = originalPath;
+            if (File.Exists(tempPath)) File.Delete(tempPath);
         }
 
         Assert.True(oldService.Disposed);
@@ -461,12 +460,18 @@ public class MainViewModelTests
     private class TestableMainViewModelWithFactory : MainViewModel
     {
         private readonly FakeGitHubService _next;
+        private readonly string _settingsFilePath;
 
-        public TestableMainViewModelWithFactory(IGitHubService initial, FakeGitHubService next)
+        public TestableMainViewModelWithFactory(IGitHubService initial, FakeGitHubService next, string? settingsFilePath = null)
             : base(new AppSettings(), initial, true)
         {
             _next = next;
+            _settingsFilePath = settingsFilePath ?? SettingsManager.DefaultSettingsFilePath;
         }
+
+        // ReSharper disable once FunctionRecursiveOnAllPaths
+        // ReSharper disable once ConvertToAutoProperty
+        protected override string SettingsFilePath => _settingsFilePath;
 
         protected override IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
         {

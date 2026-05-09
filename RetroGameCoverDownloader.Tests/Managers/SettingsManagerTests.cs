@@ -10,19 +10,16 @@ public class SettingsManagerTests
     [Fact]
     public void LoadSettingsFileDoesNotExistReturnsDefaultSettings()
     {
-        var originalPath = SettingsManager.SettingsFilePath;
         var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
 
         try
         {
-            SettingsManager.SettingsFilePath = tempPath;
-            // Ensure the file does not exist
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
             }
 
-            var settings = SettingsManager.LoadSettings();
+            var settings = SettingsManager.LoadSettings(tempPath);
 
             Assert.NotNull(settings);
             Assert.Null(settings.GitHubToken);
@@ -30,7 +27,6 @@ public class SettingsManagerTests
         }
         finally
         {
-            SettingsManager.SettingsFilePath = originalPath;
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
@@ -41,13 +37,10 @@ public class SettingsManagerTests
     [Fact]
     public void SaveSettingsAndLoadSettingsRoundTrip()
     {
-        var originalPath = SettingsManager.SettingsFilePath;
         var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
 
         try
         {
-            SettingsManager.SettingsFilePath = tempPath;
-
             var originalSettings = new AppSettings
             {
                 GitHubToken = "test_token_123",
@@ -58,9 +51,9 @@ public class SettingsManagerTests
                 ProxyPassword = "secret"
             };
 
-            SettingsManager.SaveSettings(originalSettings);
+            SettingsManager.SaveSettings(originalSettings, tempPath);
 
-            var loadedSettings = SettingsManager.LoadSettings();
+            var loadedSettings = SettingsManager.LoadSettings(tempPath);
 
             Assert.Equal(originalSettings.GitHubToken, loadedSettings.GitHubToken);
             Assert.Equal(originalSettings.UseProxy, loadedSettings.UseProxy);
@@ -71,7 +64,6 @@ public class SettingsManagerTests
         }
         finally
         {
-            SettingsManager.SettingsFilePath = originalPath;
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);

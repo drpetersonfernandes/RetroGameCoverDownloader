@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
 
 namespace RetroGameCoverDownloader.Services;
@@ -27,16 +28,22 @@ public class GitHubService : IGitHubService
         remove => _rateLimiter.OnRateLimitHit -= value;
     }
 
-    // Internal constructor for testability (allows injecting a mock HttpClient)
-    internal GitHubService(HttpClient httpClient, RateLimiter? rateLimiter = null)
+    private static readonly string SystemsCacheDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RetroGameCoverDownloader");
+    private static readonly string DefaultSystemsCacheFilePath = Path.Combine(SystemsCacheDirectory, "systems_cache.json");
+
+    private readonly string _systemsCacheFilePath;
+
+    internal GitHubService(HttpClient httpClient, RateLimiter? rateLimiter = null, string? systemsCacheFilePath = null)
     {
         _httpClient = httpClient;
         _rateLimiter = rateLimiter ?? new RateLimiter(false);
+        _systemsCacheFilePath = systemsCacheFilePath ?? DefaultSystemsCacheFilePath;
     }
 
-    public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null)
+    public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null, string? systemsCacheFilePath = null)
     {
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
+        _systemsCacheFilePath = systemsCacheFilePath ?? DefaultSystemsCacheFilePath;
 
         var handler = new HttpClientHandler();
 
@@ -194,6 +201,7 @@ public class GitHubService : IGitHubService
 
     private async Task<string> FetchGitmodulesAsync(string branch, Action<string> logAction, CancellationToken cancellationToken)
     {
+        var context = LogContext.ForMethod();
         var rawUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{branch}/.gitmodules";
 
         try
@@ -203,7 +211,7 @@ public class GitHubService : IGitHubService
         }
         catch (Exception ex)
         {
-            logAction($"[FetchGitmodulesAsync] raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
+            logAction($"{context}raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
 
             var contentsApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/contents/.gitmodules?ref={branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
@@ -281,6 +289,7 @@ public class GitHubService : IGitHubService
     /// </summary>
     private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, Action<string> logAction, CancellationToken cancellationToken = default)
     {
+        var context = LogContext.ForMethod();
         try
         {
             // 1. Get root tree (non-recursive)
@@ -310,7 +319,7 @@ public class GitHubService : IGitHubService
                         .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type })
                         .ToList();
 
-                    logAction($"Successfully retrieved {files.Count} files via fallback method.");
+                    logAction($"{context}Successfully retrieved {files.Count} files via fallback method.");
                     return (branch, files);
                 }
             }
@@ -364,7 +373,7 @@ public class GitHubService : IGitHubService
                     if (Interlocked.CompareExchange(ref _consecutive503Count, 0, currentCount) == currentCount)
                     {
                         _circuitBreakerOpenUntil = DateTime.UtcNow.AddSeconds(30);
-                        logAction?.Invoke("⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
+                        logAction?.Invoke($"{context}⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
                     }
 
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
@@ -375,7 +384,7 @@ public class GitHubService : IGitHubService
                     var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
 
                     // Feature 2: User Feedback - Show retry status with 503 count
-                    logAction?.Invoke($"Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
+                    logAction?.Invoke($"{context}Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
                     await Task.Delay(delay, cancellationToken);
                 }
             }
@@ -384,7 +393,7 @@ public class GitHubService : IGitHubService
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
 
                 // Feature 2: User Feedback - Show timeout retry
-                logAction?.Invoke($"Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
+                logAction?.Invoke($"{context}Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
                 await Task.Delay(delay, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -405,38 +414,34 @@ public class GitHubService : IGitHubService
     // Feature 1: Circuit Breaker helper - Enforces the 30s pause when threshold reached
     private Task WaitForCircuitBreakerAsync(Action<string>? logAction, CancellationToken cancellationToken)
     {
+        var context = LogContext.ForMethod();
         var now = DateTime.UtcNow;
         var openUntil = _circuitBreakerOpenUntil;
         if (now < openUntil)
         {
             var waitTime = openUntil - now;
-            logAction?.Invoke($"[Circuit Breaker] Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
+            logAction?.Invoke($"{context}Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
             return Task.Delay(waitTime, cancellationToken);
         }
 
         return Task.CompletedTask;
     }
 
-    private static readonly string SystemsCacheDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RetroGameCoverDownloader");
-    internal static string SystemsCacheFilePath { get; set; } = Path.Combine(SystemsCacheDirectory, "systems_cache.json");
-
     internal async Task SaveSystemsToCacheAsync(List<SystemConfig> systems)
     {
         try
         {
-            var cacheFile = SystemsCacheFilePath;
-            var cacheDir = Path.GetDirectoryName(cacheFile);
+            var cacheDir = Path.GetDirectoryName(_systemsCacheFilePath);
             if (!string.IsNullOrEmpty(cacheDir))
             {
                 Directory.CreateDirectory(cacheDir);
             }
 
             var json = JsonSerializer.Serialize(systems, _jsonOptions);
-            await File.WriteAllTextAsync(cacheFile, json);
+            await File.WriteAllTextAsync(_systemsCacheFilePath, json);
         }
         catch (Exception ex)
         {
-            // Don't let cache write failures break the app
             _ = BugReportService.LogErrorAsync(ex, "[GitHubService] Failed to save systems cache.");
         }
     }
@@ -445,10 +450,9 @@ public class GitHubService : IGitHubService
     {
         try
         {
-            var cacheFile = SystemsCacheFilePath;
-            if (!File.Exists(cacheFile)) return null;
+            if (!File.Exists(_systemsCacheFilePath)) return null;
 
-            var json = await File.ReadAllTextAsync(cacheFile);
+            var json = await File.ReadAllTextAsync(_systemsCacheFilePath);
             return JsonSerializer.Deserialize<List<SystemConfig>>(json, _jsonOptions);
         }
         catch (Exception ex)

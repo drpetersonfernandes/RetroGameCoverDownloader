@@ -14,7 +14,46 @@ public static class BugReportService
     private const string BugReportApiUrl = "https://www.purelogiccode.com/bugreport/api/send-bug-report";
 
     private const string ApplicationName = "RetroGameCoverDownloader";
-    internal static HttpClient HttpClientInstance { get; set; }
+    internal static Func<HttpClient> HttpClientFactory { get; set; } = CreateDefaultHttpClient;
+
+    private static HttpClient CreateDefaultHttpClient()
+    {
+        return new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+    }
+
+    private static readonly object HttpClientLock = new();
+    private static HttpClient? _httpClientInstance;
+
+    private static HttpClient GetHttpClient()
+    {
+        lock (HttpClientLock)
+        {
+            if (_httpClientInstance is not null)
+                return _httpClientInstance;
+        }
+
+        lock (HttpClientLock)
+        {
+            _httpClientInstance ??= HttpClientFactory();
+        }
+
+        lock (HttpClientLock)
+        {
+            return _httpClientInstance;
+        }
+    }
+
+    internal static void InvalidateHttpClient()
+    {
+        lock (HttpClientLock)
+        {
+            _httpClientInstance?.Dispose();
+            _httpClientInstance = null;
+        }
+    }
 
     private static readonly string BaseDirectory = AppContext.BaseDirectory;
     private static readonly string ErrorLogFilePath = Path.Combine(BaseDirectory, "error.log");
@@ -22,10 +61,6 @@ public static class BugReportService
 
     static BugReportService()
     {
-        HttpClientInstance = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
     }
 
     private static string GetEnvironmentDetails()
@@ -182,7 +217,7 @@ public static class BugReportService
             request.Headers.Add("X-API-KEY", ApiKey);
             request.Content = httpContent;
 
-            using var response = await HttpClientInstance.SendAsync(request).ConfigureAwait(false);
+            using var response = await GetHttpClient().SendAsync(request).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {

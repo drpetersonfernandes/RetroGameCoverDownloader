@@ -90,7 +90,7 @@ public partial class App
         {
             try
             {
-                BugReportService.LogErrorSync(ex, "[App.OnStartup] Unhandled exception during application startup.");
+                BugReportService.LogErrorSync(ex, "Unhandled exception during application startup.");
             }
             catch (Exception logEx)
             {

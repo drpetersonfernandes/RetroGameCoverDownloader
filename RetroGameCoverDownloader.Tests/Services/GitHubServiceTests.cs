@@ -160,10 +160,7 @@ public class GitHubServiceTests
     [Fact]
     public async Task GetAvailableSystemsAsyncSavesToCacheOnSuccess()
     {
-        // Arrange
-        var originalCachePath = GitHubService.SystemsCacheFilePath;
         var tempCachePath = Path.Combine(Path.GetTempPath(), $"rgcd_test_cache_{Guid.NewGuid()}.json");
-        GitHubService.SystemsCacheFilePath = tempCachePath;
 
         try
         {
@@ -183,12 +180,10 @@ public class GitHubServiceTests
             });
 
             var client = new HttpClient(handler);
-            var service = new GitHubService(client);
+            var service = new GitHubService(client, systemsCacheFilePath: tempCachePath);
 
-            // Act
             var systems = await service.GetAvailableSystemsAsync(static _ => { });
 
-            // Assert
             Assert.Single(systems);
             Assert.Equal("Nintendo - NES", systems[0].SystemName);
 
@@ -201,7 +196,6 @@ public class GitHubServiceTests
         }
         finally
         {
-            GitHubService.SystemsCacheFilePath = originalCachePath;
             if (File.Exists(tempCachePath)) File.Delete(tempCachePath);
         }
     }
@@ -209,10 +203,7 @@ public class GitHubServiceTests
     [Fact]
     public async Task GetAvailableSystemsAsyncFallsBackToCacheOn403()
     {
-        // Arrange
-        var originalCachePath = GitHubService.SystemsCacheFilePath;
         var tempCachePath = Path.Combine(Path.GetTempPath(), $"rgcd_test_cache_{Guid.NewGuid()}.json");
-        GitHubService.SystemsCacheFilePath = tempCachePath;
 
         try
         {
@@ -225,18 +216,15 @@ public class GitHubServiceTests
 
             var handler = new TestHttpMessageHandler(static _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
             var client = new HttpClient(handler);
-            var service = new GitHubService(client);
+            var service = new GitHubService(client, systemsCacheFilePath: tempCachePath);
 
-            // Act
             var systems = await service.GetAvailableSystemsAsync(static _ => { });
 
-            // Assert
             Assert.Single(systems);
             Assert.Equal("Cached System", systems[0].SystemName);
         }
         finally
         {
-            GitHubService.SystemsCacheFilePath = originalCachePath;
             if (File.Exists(tempCachePath)) File.Delete(tempCachePath);
         }
     }

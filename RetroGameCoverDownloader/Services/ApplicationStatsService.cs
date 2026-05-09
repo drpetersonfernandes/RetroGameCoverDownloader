@@ -53,7 +53,7 @@ public static class ApplicationStatsService
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ApplicationStatsService] Failed to track launch telemetry.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to track launch telemetry.");
         }
     }
 }

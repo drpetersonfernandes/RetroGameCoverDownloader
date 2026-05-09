@@ -48,14 +48,16 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            return SettingsManager.LoadSettings();
+            return SettingsManager.LoadSettings(SettingsManager.DefaultSettingsFilePath);
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Constructor failed to load settings.");
+            _ = BugReportService.LogErrorAsync(ex, "Constructor failed to load settings.");
             return new AppSettings();
         }
     }
+
+    protected virtual string SettingsFilePath => SettingsManager.DefaultSettingsFilePath;
 
     internal MainViewModel(AppSettings settings, IGitHubService? gitHubService, bool suppressStartup)
     {
@@ -90,7 +92,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             Log($"[MainViewModel] Failed to subscribe to rate limit events: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Constructor failed to subscribe to rate limit events.");
+            _ = BugReportService.LogErrorAsync(ex, "Constructor failed to subscribe to rate limit events.");
         }
 
         // Init Commands
@@ -105,8 +107,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[PrepareCommand] Error: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[PrepareCommand] Unhandled exception in PrepareCommand execution.");
+                Log($"[MainViewModel.PrepareCommand] Error: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.PrepareCommand] Unhandled exception in PrepareCommand execution.");
             }
         }, _ => !IsBusy && SelectedSystem != null && !string.IsNullOrEmpty(RomFolderPath) && !string.IsNullOrEmpty(CoverFolderPath));
         DownloadCommand = new RelayCommand(async void (o) =>
@@ -117,8 +119,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[DownloadCommand] Error: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[DownloadCommand] Unhandled exception in DownloadCommand execution.");
+                Log($"[MainViewModel.DownloadCommand] Error: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.DownloadCommand] Unhandled exception in DownloadCommand execution.");
             }
         }, _ => !IsBusy && ItemsToDownload.Count > 0);
         CancelCommand = new RelayCommand(
@@ -135,8 +137,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[LoadSystemsAsync] Error: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems from GitHub.");
+                Log($"[MainViewModel.LoadSystemsAsync] Error: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "An error occurred while loading systems from GitHub.");
             }
 
             // Check for updates
@@ -153,8 +155,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[OnTimerTick] Error updating countdown: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[OnTimerTick] Exception in countdown timer tick.");
+            Log($"[MainViewModel.OnTimerTick] Error updating countdown: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception in countdown timer tick.");
             _countdownTimer.Stop();
             return;
         }
@@ -176,7 +178,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             // Load current settings to preserve proxy configuration
-            var settings = SettingsManager.LoadSettings();
+            var settings = SettingsManager.LoadSettings(SettingsFilePath);
 
             // Create new service before disposing old one to avoid leaving _gitHubService in a disposed state
             var newService = CreateGitHubService(
@@ -198,12 +200,12 @@ public class MainViewModel : ViewModelBase, IDisposable
             // Store the current token for future proxy updates
             _currentToken = token;
 
-            Log("[MainViewModel] GitHub token updated. Rate limits increased.");
+            Log("[MainViewModel.UpdateToken] GitHub token updated. Rate limits increased.");
         }
         catch (Exception ex)
         {
-            Log($"[UpdateToken] Error updating service: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update token at runtime.");
+            Log($"[MainViewModel.UpdateToken] Error updating service: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to update token at runtime.");
         }
     }
 
@@ -230,12 +232,12 @@ public class MainViewModel : ViewModelBase, IDisposable
             _gitHubService.RateLimitHit += OnRateLimitHit;
 
             var proxyStatus = AppSettings.FormatProxyStatus(useProxy, proxyHost, proxyPort);
-            Log($"[MainViewModel] Proxy settings updated. Proxy: {proxyStatus}");
+            Log($"[MainViewModel.UpdateProxySettings] Proxy settings updated. Proxy: {proxyStatus}");
         }
         catch (Exception ex)
         {
-            Log($"[UpdateProxySettings] Error updating service: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Failed to update proxy settings at runtime.");
+            Log($"[MainViewModel.UpdateProxySettings] Error updating service: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to update proxy settings at runtime.");
         }
     }
 
@@ -244,7 +246,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         FileExtensions = extensions.Count > 0
             ? new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Log($"[MainViewModel] File extension filter updated. {(extensions.Count > 0 ? $"Filtering by {extensions.Count} extension(s)." : "No filter applied.")}");
+        Log($"[MainViewModel.UpdateFileExtensions] File extension filter updated. {(extensions.Count > 0 ? $"Filtering by {extensions.Count} extension(s)." : "No filter applied.")}");
     }
 
     // 4. Handle the event from RateLimiter
@@ -263,8 +265,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[OnRateLimitHit] Error handling rate limit: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[OnRateLimitHit] Exception while processing rate limit hit event.");
+            Log($"[MainViewModel.OnRateLimitHit] Error handling rate limit: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception while processing rate limit hit event.");
         }
     }
 
@@ -351,7 +353,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             // If logging fails, try to report it but don't throw
-            _ = BugReportService.LogErrorAsync(ex, $"[Log] Failed to append log message: {message}");
+            _ = BugReportService.LogErrorAsync(ex, $"[MainViewModel.Log] Failed to append log message: {message}");
         }
 
         // Optional: Update the status message for normal logs too, if not waiting
@@ -381,8 +383,8 @@ public class MainViewModel : ViewModelBase, IDisposable
                     }
                     catch (Exception ex)
                     {
-                        Log($"[LoadSystemsAsync] Error updating UI: {ex.Message}");
-                        _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] Exception while updating systems collection in UI.");
+                        Log($"[MainViewModel.LoadSystemsAsync] Error updating UI: {ex.Message}");
+                        _ = BugReportService.LogErrorAsync(ex, "Exception while updating systems collection in UI.");
                     }
                 });
 
@@ -390,8 +392,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[LoadSystemsAsync] Error: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] An error occurred while loading systems from GitHub.");
+                Log($"[MainViewModel.LoadSystemsAsync] Error: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "An error occurred while loading systems from GitHub.");
             }
             finally
             {
@@ -401,15 +403,15 @@ public class MainViewModel : ViewModelBase, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log($"[LoadSystemsAsync] Error resetting busy state: {ex.Message}");
-                    _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] Exception in finally block while resetting IsBusy.");
+                    Log($"[MainViewModel.LoadSystemsAsync] Error resetting busy state: {ex.Message}");
+                    _ = BugReportService.LogErrorAsync(ex, "Exception in finally block while resetting IsBusy.");
                 }
             }
         }
         catch (Exception ex)
         {
-            Log($"[LoadSystemsAsync] Generic error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[LoadSystemsAsync] Generic error.");
+            Log($"[MainViewModel.LoadSystemsAsync] Generic error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Generic error.");
         }
     }
 
@@ -425,8 +427,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[SelectFolder] Error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[SelectFolder] Exception while showing folder browser dialog.");
+            Log($"[MainViewModel.SelectFolder] Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception while showing folder browser dialog.");
         }
     }
 
@@ -448,7 +450,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 if (!DirectoryExists(RomFolderPath) || !DirectoryExists(CoverFolderPath))
                 {
                     const string errorMsg = "ROM folder or Cover folder does not exist.";
-                    Log($"[PrepareDownloadAsync] {errorMsg}");
+                    Log($"[MainViewModel.PrepareDownloadAsync] {errorMsg}");
                     throw new DirectoryNotFoundException(errorMsg);
                 }
 
@@ -480,7 +482,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 if (githubFiles.Count == 0)
                 {
-                    Log($"[PrepareDownloadAsync] No files found for {SelectedSystem.SystemName}.");
+                    Log($"[MainViewModel.PrepareDownloadAsync] No files found for {SelectedSystem.SystemName}.");
                     return;
                 }
 
@@ -531,17 +533,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             Log("Preparation cancelled.");
-            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Preparation cancelled by user."), "[PrepareDownloadAsync] Operation was cancelled.");
+            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Preparation cancelled by user."), "Operation was cancelled.");
         }
         catch (UnauthorizedAccessException ex)
         {
-            Log($"[PrepareDownloadAsync] Access denied to folder: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] Unauthorized access to ROM or Cover folder.");
+            Log($"[MainViewModel.PrepareDownloadAsync] Access denied to folder: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Unauthorized access to ROM or Cover folder.");
         }
         catch (Exception ex)
         {
             Log($"Error during preparation: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] An error occurred during the preparation task.");
+            _ = BugReportService.LogErrorAsync(ex, "An error occurred during the preparation task.");
         }
         finally
         {
@@ -554,8 +556,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[PrepareDownloadAsync] Error in finally block: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] Exception in finally block while resetting state.");
+                Log($"[MainViewModel.PrepareDownloadAsync] Error in finally block: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "Exception in finally block while resetting state.");
             }
             finally
             {
@@ -580,7 +582,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         if (ItemsToDownload.Count == 0)
         {
-            Log("[DownloadCoversAsync] No items to download.");
+            Log("[MainViewModel.DownloadCoversAsync] No items to download.");
             IsBusy = false;
             return;
         }
@@ -591,14 +593,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             if (string.IsNullOrWhiteSpace(item.DownloadUrl))
             {
-                Log($"[DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
+                Log($"[MainViewModel.DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
                 continue;
             }
 
             var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
             if (FileExists(savePath))
             {
-                Log($"[DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
+                Log($"[MainViewModel.DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
                 continue;
             }
 
@@ -654,17 +656,17 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
             Log("Download cancelled by user.");
-            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Download cancelled by user."), "[DownloadCoversAsync] Operation was cancelled.");
+            _ = BugReportService.LogErrorAsync(new OperationCanceledException("Download cancelled by user."), "Operation was cancelled.");
         }
         catch (IOException ex)
         {
-            Log($"[DownloadCoversAsync] File I/O error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] IOException during file operations.");
+            Log($"[MainViewModel.DownloadCoversAsync] File I/O error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "IOException during file operations.");
         }
         catch (Exception ex)
         {
             Log($"Error during download batch: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] An error occurred during the download batch task.");
+            _ = BugReportService.LogErrorAsync(ex, "An error occurred during the download batch task.");
         }
         finally
         {
@@ -677,8 +679,8 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"[DownloadCoversAsync] Error in finally block: {ex.Message}");
-                _ = BugReportService.LogErrorAsync(ex, "[DownloadCoversAsync] Exception in finally block while cleaning up.");
+                Log($"[MainViewModel.DownloadCoversAsync] Error in finally block: {ex.Message}");
+                _ = BugReportService.LogErrorAsync(ex, "Exception in finally block while cleaning up.");
             }
             finally
             {
@@ -713,8 +715,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[CancelOperation] Error cancelling operation: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[CancelOperation] Exception while cancelling operation.");
+            Log($"[MainViewModel.CancelOperation] Error cancelling operation: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception while cancelling operation.");
         }
 
         // Note: We do NOT dispose or null _cts here.
@@ -740,8 +742,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[CancelAll] Error: {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel] Error cancelling all operations.");
+            Log($"[MainViewModel.CancelAll] Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Error cancelling all operations.");
         }
     }
 
@@ -758,7 +760,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error stopping countdown timer.");
+            _ = BugReportService.LogErrorAsync(ex, "Error stopping countdown timer.");
         }
 
         try
@@ -767,7 +769,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error unsubscribing from rate limit events.");
+            _ = BugReportService.LogErrorAsync(ex, "Error unsubscribing from rate limit events.");
         }
 
         try
@@ -778,7 +780,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error disposing cancellation token source.");
+            _ = BugReportService.LogErrorAsync(ex, "Error disposing cancellation token source.");
         }
 
         try
@@ -787,7 +789,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[MainViewModel.Dispose] Error disposing GitHub service.");
+            _ = BugReportService.LogErrorAsync(ex, "Error disposing GitHub service.");
         }
 
         GC.SuppressFinalize(this);

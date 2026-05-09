@@ -30,7 +30,7 @@ public partial class ExtensionsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ExtensionsDialog] Failed to load current extensions.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to load current extensions.");
         }
     }
 
@@ -98,7 +98,7 @@ public partial class ExtensionsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[ExtensionsDialog.SaveButton_Click] Failed to save extensions.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to save extensions.");
             MessageBox.Show("An error occurred while saving. Please try again.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }

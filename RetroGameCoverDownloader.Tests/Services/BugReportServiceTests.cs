@@ -11,9 +11,9 @@ public class BugReportServiceTests
     [Fact]
     public void LogErrorSyncWithSingleThreadedSynchronizationContextDoesNotDeadlock()
     {
-        // Arrange: Swap in a fake HttpClient so the network call returns instantly.
-        var originalClient = BugReportService.HttpClientInstance;
-        BugReportService.HttpClientInstance = new HttpClient(new ImmediateOkHandler());
+        var originalFactory = BugReportService.HttpClientFactory;
+        BugReportService.InvalidateHttpClient();
+        BugReportService.HttpClientFactory = static () => new HttpClient(new ImmediateOkHandler());
 
         var syncContext = new SingleThreadSynchronizationContext();
         Exception? caughtException = null;
@@ -21,9 +21,6 @@ public class BugReportServiceTests
 
         try
         {
-            // Act: Run LogErrorSync on a thread that owns a custom SynchronizationContext.
-            // If SendLogToApiAsync incorrectly captured the context, the await continuation
-            // would be queued back to the same thread, which is blocked — causing a deadlock.
             var worker = new Thread(() =>
             {
                 SynchronizationContext.SetSynchronizationContext(syncContext);
@@ -49,7 +46,6 @@ public class BugReportServiceTests
             worker.Start();
             var finished = worker.Join(TimeSpan.FromSeconds(5));
 
-            // Assert
             Assert.True(
                 finished,
                 "LogErrorSync deadlocked when executed on a thread with a single-threaded SynchronizationContext.");
@@ -58,7 +54,8 @@ public class BugReportServiceTests
         }
         finally
         {
-            BugReportService.HttpClientInstance = originalClient;
+            BugReportService.HttpClientFactory = originalFactory;
+            BugReportService.InvalidateHttpClient();
         }
     }
 

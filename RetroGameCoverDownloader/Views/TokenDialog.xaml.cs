@@ -24,7 +24,7 @@ public partial class TokenDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[TokenDialog.SaveButton_Click] Failed to save token.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to save token.");
             MessageBox.Show("An error occurred while saving the token. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -44,7 +44,7 @@ public partial class TokenDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[TokenDialog.Hyperlink_RequestNavigate] Failed to open hyperlink.");
+            _ = BugReportService.LogErrorAsync(ex, "Failed to open hyperlink.");
             MessageBox.Show($"Could not open link: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
