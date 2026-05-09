@@ -4,7 +4,11 @@ namespace RetroGameCoverDownloader.Models;
 
 public class AppSettings
 {
+    [XmlIgnore]
     public string? GitHubToken { get; set; }
+
+    [XmlElement("GitHubToken")]
+    public string? GitHubTokenEncrypted { get; set; }
 
     // Proxy settings for users in regions with network restrictions (e.g., China)
     public bool UseProxy { get; set; }

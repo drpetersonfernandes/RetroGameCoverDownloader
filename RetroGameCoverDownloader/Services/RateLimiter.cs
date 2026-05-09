@@ -28,6 +28,7 @@ public class RateLimiter
     {
         const string context = "[RateLimiter.WaitForSlotAsync] ";
 
+        TimeSpan timeToWait;
         lock (_lock)
         {
             var now = DateTime.UtcNow;
@@ -35,11 +36,7 @@ public class RateLimiter
             {
                 _requestTimestamps.Dequeue();
             }
-        }
 
-        TimeSpan timeToWait;
-        lock (_lock)
-        {
             if (_requestTimestamps.Count < _maxRequests)
             {
                 _requestTimestamps.Enqueue(DateTime.UtcNow);
@@ -52,14 +49,12 @@ public class RateLimiter
 
         if (timeToWait > TimeSpan.Zero)
         {
-            // 2. Trigger the event before waiting
             try
             {
                 OnRateLimitHit?.Invoke(timeToWait);
             }
             catch (Exception ex)
             {
-                // Don't let event handler exceptions break the rate limiter
                 _ = BugReportService.LogErrorAsync(ex, $"{context}Exception in OnRateLimitHit event handler.");
             }
 

@@ -50,6 +50,20 @@ public static class SettingsManager
                 }
             }
 
+            // Decrypt GitHub token if present
+            if (!string.IsNullOrEmpty(settings.GitHubTokenEncrypted))
+            {
+                try
+                {
+                    settings.GitHubToken = DecryptString(settings.GitHubTokenEncrypted);
+                }
+                catch (Exception ex) when (ex is CryptographicException or FormatException)
+                {
+                    // Value may be an old plain-text token; migrate transparently
+                    settings.GitHubToken = settings.GitHubTokenEncrypted;
+                }
+            }
+
             return settings;
         }
         catch (Exception ex)
@@ -79,6 +93,16 @@ public static class SettingsManager
             else
             {
                 settings.ProxyPasswordEncrypted = null;
+            }
+
+            // Encrypt GitHub token before saving
+            if (!string.IsNullOrEmpty(settings.GitHubToken))
+            {
+                settings.GitHubTokenEncrypted = EncryptString(settings.GitHubToken);
+            }
+            else
+            {
+                settings.GitHubTokenEncrypted = null;
             }
 
             var serializer = new XmlSerializer(typeof(AppSettings));

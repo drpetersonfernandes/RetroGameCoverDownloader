@@ -328,6 +328,14 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 var text = _logBuilder.ToString();
                 text = text[^maxLogLength..];
+
+                // If the slice started in the middle of a surrogate pair,
+                // skip the orphaned low surrogate
+                if (text.Length > 0 && char.IsLowSurrogate(text[0]))
+                {
+                    text = text[1..];
+                }
+
                 var firstNewLine = text.IndexOf(Environment.NewLine, StringComparison.Ordinal);
                 if (firstNewLine >= 0)
                 {
@@ -427,6 +435,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (SelectedSystem == null) return;
 
         IsBusy = true;
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
         ItemsToDownload.Clear();
         Log("--- Starting Preparation ---");
 
@@ -466,7 +476,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 // 4. Fetch GitHub List
                 Log($"Fetching file list from GitHub for {SelectedSystem.SystemName}...");
-                var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log);
+                var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log, token);
 
                 if (githubFiles.Count == 0)
                 {
@@ -516,7 +526,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 }
 
                 Log($"Matched {ItemsToDownload.Count} covers available for download.");
-            }, CancellationToken.None);
+            }, token);
         }
         catch (OperationCanceledException)
         {
@@ -547,6 +557,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 Log($"[PrepareDownloadAsync] Error in finally block: {ex.Message}");
                 _ = BugReportService.LogErrorAsync(ex, "[PrepareDownloadAsync] Exception in finally block while resetting state.");
             }
+            finally
+            {
+                _cts?.Dispose();
+                _cts = null;
+            }
         }
     }
 
@@ -558,7 +573,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         // Validate we have items to download
         var token = _cts.Token;
 
-        ProgressMax = ItemsToDownload.Count;
         ProgressValue = 0;
         var successCount = 0;
 
@@ -571,9 +585,32 @@ public class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // Pre-filter: count only items that need actual downloading
+        var itemsToProcess = new List<CoverDownloadItem>();
+        foreach (var item in ItemsToDownload)
+        {
+            if (string.IsNullOrWhiteSpace(item.DownloadUrl))
+            {
+                Log($"[DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
+                continue;
+            }
+
+            var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
+            if (FileExists(savePath))
+            {
+                Log($"[DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
+                continue;
+            }
+
+            itemsToProcess.Add(item);
+        }
+
+        ProgressMax = itemsToProcess.Count;
+        Log($"--- {itemsToProcess.Count} items to download ---");
+
         try
         {
-            foreach (var item in ItemsToDownload)
+            foreach (var item in itemsToProcess)
             {
                 if (token.IsCancellationRequested)
                 {
@@ -581,21 +618,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     break;
                 }
 
-                // Validate download URL
-                if (string.IsNullOrWhiteSpace(item.DownloadUrl))
-                {
-                    Log($"[DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
-                    ProgressValue++;
-                    continue;
-                }
-
                 var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
-                if (FileExists(savePath))
-                {
-                    Log($"[DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
-                    ProgressValue++;
-                    continue;
-                }
 
                 Log($"Downloading: {item.GameName}...");
 
@@ -806,7 +829,15 @@ public class MainViewModel : ViewModelBase, IDisposable
     protected virtual long GetAvailableFreeSpace(string path)
     {
         var root = Path.GetPathRoot(path) ?? throw new InvalidOperationException("Could not get root path of Cover folder");
-        return new DriveInfo(root).AvailableFreeSpace;
+
+        try
+        {
+            return new DriveInfo(root).AvailableFreeSpace;
+        }
+        catch (ArgumentException ex)
+        {
+            throw new IOException($"Unable to determine free space for path '{path}'. The drive may be unavailable or the path may be a UNC path.", ex);
+        }
     }
 
     protected virtual IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)

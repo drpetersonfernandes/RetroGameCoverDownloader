@@ -86,8 +86,8 @@ public partial class ProxySettingsDialog
             ProxyUsername = UseProxy && !string.IsNullOrWhiteSpace(ProxyUsernameBox.Text)
                 ? ProxyUsernameBox.Text.Trim()
                 : null;
-            ProxyPassword = UseProxy && !string.IsNullOrWhiteSpace(ProxyPasswordBox.Password)
-                ? ProxyPasswordBox.Password
+            ProxyPassword = UseProxy && ProxyPasswordBox.SecurePassword.Length > 0
+                ? new System.Net.NetworkCredential(string.Empty, ProxyPasswordBox.SecurePassword).Password
                 : null;
 
             DialogResult = true;

@@ -387,6 +387,10 @@ public class GitHubService : IGitHubService
                 logAction?.Invoke($"Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
                 await Task.Delay(delay, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 // Log final failure after all retries exhausted or non-transient error
@@ -402,9 +406,10 @@ public class GitHubService : IGitHubService
     private Task WaitForCircuitBreakerAsync(Action<string>? logAction, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        if (now < _circuitBreakerOpenUntil)
+        var openUntil = _circuitBreakerOpenUntil;
+        if (now < openUntil)
         {
-            var waitTime = _circuitBreakerOpenUntil - now;
+            var waitTime = openUntil - now;
             logAction?.Invoke($"[Circuit Breaker] Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
             return Task.Delay(waitTime, cancellationToken);
         }
