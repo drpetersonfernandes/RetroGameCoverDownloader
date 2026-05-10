@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
@@ -5,6 +6,7 @@ using System.Text;
 using System.Windows.Input;
 using System.Windows.Threading;
 using RetroGameCoverDownloader.Commands;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Models;
 using RetroGameCoverDownloader.Services;
@@ -19,7 +21,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly DispatcherTimer _countdownTimer; // Timer for UI updates
     private TimeSpan _remainingWaitTime;
     private string? _currentToken;
-    internal HashSet<string> FileExtensions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentQueue<IGitHubService> _orphanedServices = new();
+
+    internal bool HasGitHubToken => !string.IsNullOrWhiteSpace(_currentToken);
+    internal volatile HashSet<string> FileExtensions = new(StringComparer.OrdinalIgnoreCase);
 
     // Data
     public ObservableCollection<SystemConfig> Systems { get; } = [];
@@ -32,6 +37,28 @@ public class MainViewModel : ViewModelBase, IDisposable
     public RelayCommand PrepareCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public RelayCommand CancelCommand { get; }
+    public RelayCommand OpenUpdateUrlCommand { get; }
+    public RelayCommand DismissUpdateCommand { get; }
+    public RelayCommand CheckForUpdatesCommand { get; }
+
+    // Update notification
+    public bool UpdateAvailable
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public string UpdateVersionText
+    {
+        get;
+        set => SetField(ref field, value);
+    } = "";
+
+    public string UpdateReleaseUrl
+    {
+        get;
+        set => SetField(ref field, value);
+    } = "";
 
     // 1. Add a property for the UI message
     public string StatusMessage
@@ -128,6 +155,33 @@ public class MainViewModel : ViewModelBase, IDisposable
             _ => IsBusy && _cts != null // Add null check to disable button sooner
         );
 
+        OpenUpdateUrlCommand = new RelayCommand(_ =>
+        {
+            if (!string.IsNullOrEmpty(UpdateReleaseUrl))
+                UpdateCheckerService.OpenUrlInBrowser(UpdateReleaseUrl);
+        });
+
+        DismissUpdateCommand = new RelayCommand(_ =>
+        {
+            UpdateAvailable = false;
+        });
+
+        CheckForUpdatesCommand = new RelayCommand(async void (_) =>
+        {
+            try
+            {
+                Log("Checking for updates...");
+                await UpdateCheckerService.CheckForUpdateAsync(Log);
+            }
+            catch (Exception ex)
+            {
+                Log($"[MainViewModel.CheckForUpdatesCommand] Error: {ex.Message}");
+                await BugReportService.LogErrorAsync(ex, "Error checking for updates.");
+            }
+        });
+
+        UpdateCheckerService.UpdateAvailable += OnUpdateAvailable;
+
         if (!suppressStartup)
         {
             // Load Systems on Startup
@@ -142,7 +196,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
 
             // Check for updates
-            _ = UpdateCheckerService.CheckForUpdateAsync();
+            _ = UpdateCheckerService.CheckForUpdateAsync(Log);
         }
     }
 
@@ -189,13 +243,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 settings.ProxyUsername,
                 settings.ProxyPassword);
 
-            // Cleanup old service
+            // Unsubscribe from old service and swap atomically
             _gitHubService.RateLimitHit -= OnRateLimitHit;
-            _gitHubService.Dispose();
-
-            // Swap in new service
-            _gitHubService = newService;
-            _gitHubService.RateLimitHit += OnRateLimitHit;
+            var oldService = Interlocked.Exchange(ref _gitHubService, newService);
+            _orphanedServices.Enqueue(oldService);
+            newService.RateLimitHit += OnRateLimitHit;
 
             // Store the current token for future proxy updates
             _currentToken = token;
@@ -223,13 +275,11 @@ public class MainViewModel : ViewModelBase, IDisposable
                 proxyUsername,
                 proxyPassword);
 
-            // Cleanup old service
+            // Unsubscribe from old service and swap atomically
             _gitHubService.RateLimitHit -= OnRateLimitHit;
-            _gitHubService.Dispose();
-
-            // Swap in new service
-            _gitHubService = newService;
-            _gitHubService.RateLimitHit += OnRateLimitHit;
+            var oldService = Interlocked.Exchange(ref _gitHubService, newService);
+            _orphanedServices.Enqueue(oldService);
+            newService.RateLimitHit += OnRateLimitHit;
 
             var proxyStatus = AppSettings.FormatProxyStatus(useProxy, proxyHost, proxyPort);
             Log($"[MainViewModel.UpdateProxySettings] Proxy settings updated. Proxy: {proxyStatus}");
@@ -267,6 +317,25 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[MainViewModel.OnRateLimitHit] Error handling rate limit: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "Exception while processing rate limit hit event.");
+        }
+    }
+
+    private void OnUpdateAvailable(UpdateInfo updateInfo)
+    {
+        try
+        {
+            InvokeOnDispatcher(() =>
+            {
+                UpdateVersionText = $"Version {updateInfo.LatestVersion} is available";
+                UpdateReleaseUrl = updateInfo.ReleaseUrl;
+                UpdateAvailable = true;
+                Log($"Update available: {updateInfo.LatestVersion} (current: {AppInfo.Version})");
+            });
+        }
+        catch (Exception ex)
+        {
+            Log($"[MainViewModel.OnUpdateAvailable] Error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception while processing update notification.");
         }
     }
 
@@ -434,7 +503,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     internal async Task PrepareDownloadAsync()
     {
-        if (SelectedSystem == null) return;
+        var selectedSystem = SelectedSystem;
+        if (selectedSystem == null) return;
+        if (IsBusy) return;
 
         IsBusy = true;
         _cts = new CancellationTokenSource();
@@ -469,7 +540,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Log($"Found {coverNames.Count} existing covers.");
 
-                // 3. Identify Missing
+                // 4. Identify Missing
                 var missingCovers = romNames.Where(r => !coverNames.Contains(r)).ToList();
                 Log($"Missing {missingCovers.Count} covers based on local files.");
 
@@ -479,13 +550,13 @@ public class MainViewModel : ViewModelBase, IDisposable
                     return;
                 }
 
-                // 4. Fetch GitHub List
-                Log($"Fetching file list from GitHub for {SelectedSystem.SystemName}...");
-                var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(SelectedSystem, Log, token);
+                // 5. Fetch GitHub List
+                Log($"Fetching file list from GitHub for {selectedSystem.SystemName}...");
+                var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(selectedSystem, Log, token);
 
                 if (githubFiles.Count == 0)
                 {
-                    Log($"[MainViewModel.PrepareDownloadAsync] No files found for {SelectedSystem.SystemName}.");
+                    Log($"[MainViewModel.PrepareDownloadAsync] No files found for {selectedSystem.SystemName}.");
                     return;
                 }
 
@@ -504,7 +575,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 Log($"After filtering non-cover files: {githubFiles.Count} files.");
 
-                // 5. Match Missing vs GitHub
+                // 6. Match Missing vs GitHub
                 // GitHub paths are like "Named_Boxarts/Game Name.png"
                 // We match "Game Name"
                 foreach (var missing in missingCovers)
@@ -519,7 +590,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                         // Construct raw URL using the detected branch.
                         // Encode each path segment separately to preserve '/' separators.
                         var encodedPath = string.Join("/", match.Path.Split('/').Select(Uri.EscapeDataString));
-                        var url = $"https://raw.githubusercontent.com/{SelectedSystem.Owner}/{SelectedSystem.Repo}/{branch}/{encodedPath}";
+                        var url = $"https://raw.githubusercontent.com/{selectedSystem.Owner}/{selectedSystem.Repo}/{branch}/{encodedPath}";
 
                         ItemsToDownload.Add(new CoverDownloadItem
                         {
@@ -540,6 +611,12 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (UnauthorizedAccessException ex)
         {
             Log($"[MainViewModel.PrepareDownloadAsync] Access denied to folder: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Access denied to folder during preparation.");
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            Log($"[MainViewModel.PrepareDownloadAsync] {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "One or more configured folders do not exist.");
         }
         catch (Exception ex)
         {
@@ -564,12 +641,15 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 _cts?.Dispose();
                 _cts = null;
+                DrainOrphanedServices();
             }
         }
     }
 
     internal async Task DownloadCoversAsync()
     {
+        if (IsBusy) return;
+
         IsBusy = true;
         _cts = new CancellationTokenSource();
 
@@ -584,6 +664,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (ItemsToDownload.Count == 0)
         {
             Log("[MainViewModel.DownloadCoversAsync] No items to download.");
+            _cts?.Dispose();
+            _cts = null;
             IsBusy = false;
             return;
         }
@@ -663,6 +745,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (IOException ex)
         {
             Log($"[MainViewModel.DownloadCoversAsync] File I/O error: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "File I/O error during download batch.");
         }
         catch (Exception ex)
         {
@@ -688,6 +771,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 // Dispose and null out in a nested finally to ensure it always happens
                 _cts?.Dispose();
                 _cts = null;
+                DrainOrphanedServices();
             }
         }
     }
@@ -775,6 +859,15 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
+            UpdateCheckerService.UpdateAvailable -= OnUpdateAvailable;
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, "Error unsubscribing from update checker events.");
+        }
+
+        try
+        {
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
@@ -793,12 +886,29 @@ public class MainViewModel : ViewModelBase, IDisposable
             _ = BugReportService.LogErrorAsync(ex, "Error disposing GitHub service.");
         }
 
+        DrainOrphanedServices();
+
         GC.SuppressFinalize(this);
+    }
+
+    private void DrainOrphanedServices()
+    {
+        while (_orphanedServices.TryDequeue(out var service))
+        {
+            try
+            {
+                service.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _ = BugReportService.LogErrorAsync(ex, "Error disposing orphaned GitHub service.");
+            }
+        }
     }
 
     protected virtual void InvokeOnDispatcher(Action action)
     {
-        Application.Current.Dispatcher.Invoke(action);
+        Application.Current?.Dispatcher.Invoke(action);
     }
 
     protected virtual void InvalidateCommands()
@@ -814,9 +924,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     protected virtual string[] GetFiles(string path)
     {
         var files = Directory.GetFiles(path);
-        if (FileExtensions.Count == 0) return files;
+        var extensions = FileExtensions;
+        if (extensions.Count == 0) return files;
 
-        return files.Where(f => FileExtensions.Contains(Path.GetExtension(f))).ToArray();
+        return files.Where(f => extensions.Contains(Path.GetExtension(f))).ToArray();
     }
 
     protected virtual Task WriteAllBytesAsync(string path, byte[] data, CancellationToken cancellationToken)

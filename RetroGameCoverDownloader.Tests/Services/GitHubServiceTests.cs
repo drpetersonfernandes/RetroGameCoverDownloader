@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
 using RetroGameCoverDownloader.Services;
 using Xunit;
@@ -232,13 +233,19 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void IsTransientErrorReturnsTrueFor403()
+    public void IsTransientErrorReturnsFalseFor403()
     {
-        var method = typeof(GitHubService).GetMethod("IsTransientError", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
+        var ex = new HttpRequestException("Forbidden", null, HttpStatusCode.Forbidden);
+        var result = RetryHelper.IsTransientError(ex);
 
-        var ex = new HttpRequestException("Rate limit exceeded", null, HttpStatusCode.Forbidden);
-        var result = (bool)(method.Invoke(null, [ex]) ?? throw new InvalidOperationException());
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsTransientErrorReturnsTrueFor503()
+    {
+        var ex = new HttpRequestException("Service Unavailable", null, HttpStatusCode.ServiceUnavailable);
+        var result = RetryHelper.IsTransientError(ex);
 
         Assert.True(result);
     }

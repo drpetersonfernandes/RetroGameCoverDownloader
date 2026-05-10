@@ -2,6 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
 using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
@@ -12,14 +13,15 @@ public class GitHubService : IGitHubService
 {
     private readonly HttpClient _httpClient;
     private readonly RateLimiter _rateLimiter;
+    private readonly RetrySettings _retrySettings;
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const string MainRepoOwner = "libretro-thumbnails";
     private const string MainRepoName = "libretro-thumbnails";
     private static readonly char[] Separator = ['\r', '\n'];
 
     // Circuit breaker state (thread-safe counters for 503 tracking)
-    private int _consecutive503Count;
-    private DateTime _circuitBreakerOpenUntil = DateTime.MinValue;
+    private volatile int _consecutive503Count;
+    private long _circuitBreakerOpenUntilTicks = DateTime.MinValue.Ticks;
 
     // 1. Expose the event wrapper
     public event Action<TimeSpan>? RateLimitHit
@@ -33,62 +35,65 @@ public class GitHubService : IGitHubService
 
     private readonly string _systemsCacheFilePath;
 
-    internal GitHubService(HttpClient httpClient, RateLimiter? rateLimiter = null, string? systemsCacheFilePath = null)
+    internal GitHubService(HttpClient httpClient, RateLimiter? rateLimiter = null, string? systemsCacheFilePath = null, RetrySettings? retrySettings = null)
     {
         _httpClient = httpClient;
         _rateLimiter = rateLimiter ?? new RateLimiter(false);
         _systemsCacheFilePath = systemsCacheFilePath ?? DefaultSystemsCacheFilePath;
+        _retrySettings = retrySettings ?? RetrySettings.Default;
     }
 
-    public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null, string? systemsCacheFilePath = null)
+    public GitHubService(string? token, bool useProxy = false, string? proxyHost = null, int proxyPort = 0, string? proxyUsername = null, string? proxyPassword = null, string? systemsCacheFilePath = null, RetrySettings? retrySettings = null)
     {
         _rateLimiter = new RateLimiter(!string.IsNullOrWhiteSpace(token));
         _systemsCacheFilePath = systemsCacheFilePath ?? DefaultSystemsCacheFilePath;
+        _retrySettings = retrySettings ?? RetrySettings.Default;
+
+        if (useProxy && !string.IsNullOrWhiteSpace(proxyHost) && proxyPort is < 1 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(proxyPort), proxyPort, "Proxy port must be between 1 and 65535.");
 
         var handler = new HttpClientHandler();
-
-        // Configure proxy if enabled
-        if (useProxy && !string.IsNullOrWhiteSpace(proxyHost) && proxyPort > 0)
-        {
-            // Strip protocol prefix if user accidentally included it
-            var cleanHost = proxyHost.Trim();
-            if (cleanHost.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            {
-                cleanHost = cleanHost["http://".Length..];
-            }
-            else if (cleanHost.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                cleanHost = cleanHost["https://".Length..];
-            }
-
-            cleanHost = cleanHost.TrimEnd('/');
-
-            var proxy = new WebProxy
-            {
-                Address = new Uri($"http://{cleanHost}:{proxyPort}"),
-                BypassProxyOnLocal = false
-            };
-
-            // Add credentials only if both username and password are provided
-            if (!string.IsNullOrWhiteSpace(proxyUsername) && !string.IsNullOrWhiteSpace(proxyPassword))
-            {
-                proxy.Credentials = new NetworkCredential(proxyUsername, proxyPassword);
-            }
-
-            handler.Proxy = proxy;
-            handler.UseProxy = true;
-        }
-
         try
         {
+            if (useProxy && !string.IsNullOrWhiteSpace(proxyHost) && proxyPort > 0)
+            {
+                var cleanHost = proxyHost.Trim();
+                if (cleanHost.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanHost = cleanHost["http://".Length..];
+                }
+                else if (cleanHost.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanHost = cleanHost["https://".Length..];
+                }
+
+                cleanHost = cleanHost.TrimEnd('/');
+
+                var proxy = new WebProxy
+                {
+                    Address = new Uri($"http://{cleanHost}:{proxyPort}"),
+                    BypassProxyOnLocal = false
+                };
+
+                if (!string.IsNullOrWhiteSpace(proxyUsername) && !string.IsNullOrWhiteSpace(proxyPassword))
+                {
+                    proxy.Credentials = new NetworkCredential(proxyUsername, proxyPassword);
+                }
+
+                handler.Proxy = proxy;
+                handler.UseProxy = true;
+            }
+
             _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
         }
         catch (Exception ex)
         {
+            handler.Dispose();
+            _ = BugReportService.LogErrorAsync(ex, "Failed to initialize HttpClient in GitHubService.");
             throw new InvalidOperationException("Failed to initialize HttpClient in GitHubService.", ex);
         }
 
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverDownloader", "1.0"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetroGameCoverDownloader", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
         UpdateAuthorizationHeader(token);
@@ -114,7 +119,7 @@ public class GitHubService : IGitHubService
     {
         const string context = "[GetAvailableSystemsAsync] ";
 
-        var branches = new[] { "master", "main" };
+        var branches = new[] { "main", "master" };
         Exception? lastException = null;
 
         foreach (var branch in branches)
@@ -182,7 +187,7 @@ public class GitHubService : IGitHubService
         var mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{branch}?recursive=1";
 
         await _rateLimiter.WaitForSlotAsync(cancellationToken);
-        var jsonResponse = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), cancellationToken: cancellationToken);
+        var jsonResponse = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
         var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
 
         if (tree?.Tree != null)
@@ -209,7 +214,7 @@ public class GitHubService : IGitHubService
         try
         {
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            return await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), cancellationToken: cancellationToken);
+            return await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
         {
@@ -226,7 +231,7 @@ public class GitHubService : IGitHubService
         {
             var contentsApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/contents/.gitmodules?ref={branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var json = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), cancellationToken: cancellationToken);
+            var json = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
 
             using var doc = JsonDocument.Parse(json);
             var content = doc.RootElement.GetProperty("content").GetString();
@@ -266,7 +271,7 @@ public class GitHubService : IGitHubService
                 var apiUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}?recursive=1";
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
 
-                using var response = await RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl, cancellationToken), cancellationToken: cancellationToken);
+                using var response = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
 
                 switch (response.StatusCode)
                 {
@@ -316,7 +321,7 @@ public class GitHubService : IGitHubService
             // 1. Get root tree (non-recursive)
             var rootUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var rootJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl, cancellationToken), cancellationToken: cancellationToken);
+            var rootJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
             var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
 
             // 2. Find the "Named_Boxarts" folder entry
@@ -329,7 +334,7 @@ public class GitHubService : IGitHubService
                 // We use the SHA of the folder to get its contents directly
                 var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{folderEntry.Sha}";
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
-                var folderJson = await RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl, cancellationToken), cancellationToken: cancellationToken);
+                var folderJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
                 var folderTree = JsonSerializer.Deserialize<GitHubTree>(folderJson, _jsonOptions);
 
                 if (folderTree?.Tree != null)
@@ -358,12 +363,11 @@ public class GitHubService : IGitHubService
     public async Task<byte[]?> DownloadFileAsync(string url, Action<string>? logAction = null, CancellationToken cancellationToken = default)
     {
         const string context = "[DownloadFileAsync] ";
-        const int maxRetries = 3;
 
         // Feature 1: Circuit Breaker - Check if we need to pause before attempting
         await WaitForCircuitBreakerAsync(logAction, cancellationToken);
 
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        for (var attempt = 1; attempt <= _retrySettings.MaxRetries; attempt++)
         {
             try
             {
@@ -383,35 +387,35 @@ public class GitHubService : IGitHubService
                 Interlocked.Exchange(ref _consecutive503Count, 0);
                 return data;
             }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable && attempt < maxRetries)
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable && attempt < _retrySettings.MaxRetries)
             {
                 // Feature 1: Circuit Breaker Pattern - Track 503s
                 var currentCount = Interlocked.Increment(ref _consecutive503Count);
 
-                if (currentCount >= 5)
+                if (currentCount >= _retrySettings.CircuitBreakerThreshold)
                 {
                     // Use CompareExchange to ensure only one thread triggers the cooldown
                     if (Interlocked.CompareExchange(ref _consecutive503Count, 0, currentCount) == currentCount)
                     {
-                        _circuitBreakerOpenUntil = DateTime.UtcNow.AddSeconds(30);
-                        logAction?.Invoke($"{context}⚠️ Circuit breaker triggered: 5 consecutive 503s detected. Cooling down for 30s...");
+                        Interlocked.Exchange(ref _circuitBreakerOpenUntilTicks, DateTime.UtcNow.AddSeconds(_retrySettings.CircuitBreakerCooldownSeconds).Ticks);
+                        logAction?.Invoke($"{context}⚠️ Circuit breaker triggered: {_retrySettings.CircuitBreakerThreshold} consecutive 503s detected. Cooling down for {_retrySettings.CircuitBreakerCooldownSeconds}s...");
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(_retrySettings.CircuitBreakerCooldownSeconds), cancellationToken);
                 }
                 else
                 {
                     // Exponential backoff: 3s, 6s, 12s...
-                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                     // Feature 2: User Feedback - Show retry status with 503 count
                     logAction?.Invoke($"{context}Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
                     await Task.Delay(delay, cancellationToken);
                 }
             }
-            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException && attempt < maxRetries)
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException && attempt < _retrySettings.MaxRetries)
             {
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                 // Feature 2: User Feedback - Show timeout retry
                 logAction?.Invoke($"{context}Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
@@ -424,7 +428,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log final failure after all retries exhausted or non-transient error
-                await BugReportService.LogErrorAsync(ex, $"{context}Failed after {attempt} attempts: {url}");
+                await BugReportService.LogErrorAsync(ex, $"{context}Failed on attempt {attempt} of {_retrySettings.MaxRetries}: {url}");
                 return null;
             }
         }
@@ -437,7 +441,7 @@ public class GitHubService : IGitHubService
     {
         var context = LogContext.ForMethod();
         var now = DateTime.UtcNow;
-        var openUntil = _circuitBreakerOpenUntil;
+        var openUntil = new DateTime(Interlocked.Read(ref _circuitBreakerOpenUntilTicks), DateTimeKind.Utc);
         if (now < openUntil)
         {
             var waitTime = openUntil - now;
@@ -483,41 +487,6 @@ public class GitHubService : IGitHubService
         }
     }
 
-    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3, CancellationToken cancellationToken = default)
-    {
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            try
-            {
-                return await action();
-            }
-            catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
-            {
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
-                await Task.Delay(delay, cancellationToken);
-            }
-        }
-
-        return await action();
-    }
-
-    private static bool IsTransientError(Exception ex)
-    {
-        if (ex is HttpRequestException httpEx)
-        {
-            if (httpEx.StatusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError)
-            {
-                return httpEx.StatusCode is HttpStatusCode.RequestTimeout
-                    or HttpStatusCode.Forbidden
-                    or (HttpStatusCode)429;
-            }
-
-            return httpEx.InnerException is System.Net.Sockets.SocketException;
-        }
-
-        return ex is TaskCanceledException { InnerException: TimeoutException };
-    }
-
     private static Dictionary<string, string> ParseGitmodules(string content)
     {
         const string context = "[ParseGitmodules] ";
@@ -551,16 +520,9 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log parsing errors but continue processing other lines
-                var errorMsg = $"{context}Error parsing line '{trimmed}': {ex.Message}";
-                Console.WriteLine(errorMsg);
                 _ = BugReportService.LogErrorAsync(ex, $"{context}Exception parsing gitmodules line: {trimmed}");
                 currentPath = null; // Reset to avoid corrupting next entry
             }
-        }
-
-        if (map.Count == 0)
-        {
-            Console.WriteLine($"{context}No systems were parsed from .gitmodules content.");
         }
 
         return map;

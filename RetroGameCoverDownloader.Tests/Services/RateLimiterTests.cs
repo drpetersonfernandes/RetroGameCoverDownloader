@@ -36,7 +36,7 @@ public class RateLimiterTests
     }
 
     [Fact]
-    public async Task RateLimiterUpdateLimitChangesBehavior()
+    public async Task RateLimiterUpdateLimitChangesBehaviorAsync()
     {
         var limiter = new RateLimiter(false);
 
@@ -60,7 +60,7 @@ public class RateLimiterTests
     }
 
     [Fact]
-    public async Task RateLimiterOnRateLimitHitFiresEvent()
+    public async Task RateLimiterOnRateLimitHitFiresEventAsync()
     {
         var limiter = new RateLimiter(false);
         TimeSpan? receivedWaitTime = null;
@@ -82,7 +82,7 @@ public class RateLimiterTests
     }
 
     [Fact]
-    public async Task RateLimiterCancellationTokenCancelsWait()
+    public async Task RateLimiterCancellationTokenCancelsWaitAsync()
     {
         var limiter = new RateLimiter(false);
         using var cts = new CancellationTokenSource();

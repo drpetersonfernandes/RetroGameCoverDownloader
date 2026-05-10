@@ -6,11 +6,16 @@
              >
     <Application.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <!-- ==================== Color Resources ==================== -->
         <SolidColorBrush x:Key="StatusTextColor" Color="#333333"/>
         <SolidColorBrush x:Key="NoteTextColor" Color="#808080"/>
         <SolidColorBrush x:Key="MenuItemIconForeground" Color="#333333"/>
+        <SolidColorBrush x:Key="UpdateBannerBackgroundColor" Color="#D4EDDA"/>
+        <SolidColorBrush x:Key="UpdateBannerBorderColor" Color="#28A745"/>
+        <SolidColorBrush x:Key="UpdateBannerTextColor" Color="#155724"/>
+        <SolidColorBrush x:Key="UpdateBannerLinkColor" Color="#0C5460"/>
 
         <!-- ==================== Menu Icon Resources ==================== -->
 
@@ -55,6 +60,17 @@
             </Canvas>
         </Viewbox>
 
+        <Viewbox x:Key="UpdateIcon" x:Shared="False" Width="16" Height="16">
+            <Canvas Width="24" Height="24">
+                <Path Data="M12,2 A10,10 0 1,0 12,22 A10,10 0 1,0 12,2"
+                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"/>
+                <Path Data="M12,7 L12,13 M9,10 L12,7 L15,10"
+                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"/>
+                <Line X1="8" Y1="17" X2="16" Y2="17"
+                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5"/>
+            </Canvas>
+        </Viewbox>
+
         <!-- ==================== Text Styles ==================== -->
 
         <!-- Title text: dialog/section headings -->
@@ -87,12 +103,27 @@
             <Setter Property="Margin" Value="0,0,0,15"/>
         </Style>
 
+        <!-- Bold inline text: for use on Run elements -->
+        <Style x:Key="BoldRunStyle" TargetType="Run">
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
         <!-- Log text: monospace text for log display -->
         <Style x:Key="LogTextStyle" TargetType="TextBox">
             <Setter Property="FontFamily" Value="Consolas"/>
             <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="IsReadOnly" Value="True"/>
+        </Style>
+
+        <!-- Banner update notification text -->
+        <Style x:Key="BannerTextStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Banner update notification hyperlink -->
+        <Style x:Key="BannerLinkStyle" TargetType="Hyperlink">
+            <Setter Property="FontWeight" Value="Bold"/>
         </Style>
 
         <!-- Field label: bold label for input fields -->
@@ -140,6 +171,7 @@
         <!-- Password input field -->
         <Style x:Key="PasswordInputStyle" TargetType="PasswordBox">
             <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
         </Style>
 

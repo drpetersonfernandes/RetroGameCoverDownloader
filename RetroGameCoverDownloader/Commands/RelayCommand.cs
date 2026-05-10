@@ -20,6 +20,9 @@ public class RelayCommand : ICommand
 
     public void Execute(object? parameter)
     {
+        if (!CanExecute(parameter))
+            return;
+
         _execute(parameter);
     }
 

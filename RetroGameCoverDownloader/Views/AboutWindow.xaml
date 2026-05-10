@@ -32,7 +32,7 @@
                        ToolTip="This application connects to GitHub to browse and download cover art"/>
             <TextBlock Margin="0,5,0,0" Text="Supports rate limit handling and parallel downloads."
                        ToolTip="Automatically manages GitHub API rate limits during downloads"/>
-            <TextBlock Margin="0,10,0,0">
+            <TextBlock Margin="0,10,0,0" ToolTip="Developer website link">
                 <Hyperlink NavigateUri="https://www.purelogiccode.com" RequestNavigate="Hyperlink_RequestNavigate"
                            ToolTip="Opens the developer website in your browser">
                     https://www.purelogiccode.com

@@ -15,10 +15,10 @@
                        ToolTip="Understanding the benefits of using a token"/>
             <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
                        ToolTip="Comparison of rate limits with and without a token">
-                <Run Text="Without a token: " FontWeight="Bold"/>
+                <Run Text="Without a token: " Style="{StaticResource BoldRunStyle}"/>
                 <Run Text="55 downloads/hour limit (~50 games)"/>
                 <LineBreak/>
-                <Run Text="With a token: " FontWeight="Bold"/>
+                <Run Text="With a token: " Style="{StaticResource BoldRunStyle}"/>
                 <Run Text="4,900 downloads/hour (recommended)"/>
             </TextBlock>
             
@@ -33,25 +33,39 @@
             <!-- How to get one -->
             <TextBlock Text="How to get one (free):" Style="{StaticResource SectionHeadingStyle}"
                        ToolTip="Step-by-step guide to creating a token"/>
-            <TextBlock Margin="0,0,0,10"
+            <TextBlock Margin="0,0,0,10" FontSize="12"
                        ToolTip="Follow these steps to create your GitHub token">
                 <Hyperlink NavigateUri="https://github.com/settings/tokens/new" RequestNavigate="Hyperlink_RequestNavigate"
                            ToolTip="Opens the GitHub token creation page in your browser">
                     1. Click here to create a token
                 </Hyperlink>
                 <LineBreak/>
-                <Run Text="2. Select the " FontSize="12"/>
-                <Run Text="public_repo" FontWeight="Bold" FontSize="12"/>
-                <Run Text=" scope" FontSize="12"/>
+                <Run Text="2. Select the "/>
+                <Run Text="public_repo" Style="{StaticResource BoldRunStyle}"/>
+                <Run Text=" scope"/>
                 <LineBreak/>
-                <Run Text="3. Click 'Generate token' and copy it below" FontSize="12"/>
+                <Run Text="3. Click 'Generate token' and copy it below"/>
             </TextBlock>
             
+            <!-- Existing Token Indicator -->
+            <Border x:Name="ExistingTokenPanel" Visibility="Collapsed" 
+                    Background="#FFF0F0F0" BorderBrush="#FFCCCCCC" BorderThickness="1" 
+                    CornerRadius="4" Padding="10" Margin="0,0,0,10"
+                    ToolTip="A token is already saved">
+                <StackPanel>
+                    <TextBlock Text="Current token:" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
+                    <TextBlock Text="**************************" FontFamily="Consolas" FontSize="14" 
+                               Foreground="#FF555555"/>
+                    <TextBlock Text="Enter a new token below to replace it, or leave empty to keep the current one." 
+                               Style="{StaticResource NoteTextStyle}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+
             <!-- Token Input -->
             <TextBlock Text="Token (optional):" Style="{StaticResource FieldLabelStyle}"
                        ToolTip="Paste your GitHub Personal Access Token here"/>
-            <TextBox x:Name="TokenBox" Style="{StaticResource TextInputStyle}" Margin="0,0,0,20"
-                     ToolTip="Paste your GitHub token here, or leave empty to proceed with limited rate (55 requests/hour)"/>
+            <PasswordBox x:Name="TokenBox" Margin="0,0,0,20" Style="{StaticResource PasswordInputStyle}"
+                      ToolTip="Paste your GitHub token here, or leave empty to proceed with limited rate (55 requests/hour)"/>
             
             <!-- Note -->
             <TextBlock Text="Leave empty to proceed without a token, but expect slower downloads." 

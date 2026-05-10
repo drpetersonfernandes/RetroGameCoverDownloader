@@ -68,7 +68,6 @@ public static class SettingsManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"{context}Warning: Could not read settings file. A new one will be created. Error: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to deserialize settings.xml. Creating new settings.");
             return new AppSettings();
         }
@@ -90,31 +89,27 @@ public static class SettingsManager
                 Directory.CreateDirectory(directory);
             }
 
-            if (!string.IsNullOrEmpty(settings.ProxyPassword))
+            var copy = new AppSettings
             {
-                settings.ProxyPasswordEncrypted = EncryptString(settings.ProxyPassword);
-            }
-            else
-            {
-                settings.ProxyPasswordEncrypted = null;
-            }
-
-            if (!string.IsNullOrEmpty(settings.GitHubToken))
-            {
-                settings.GitHubTokenEncrypted = EncryptString(settings.GitHubToken);
-            }
-            else
-            {
-                settings.GitHubTokenEncrypted = null;
-            }
+                GitHubTokenEncrypted = string.IsNullOrEmpty(settings.GitHubToken)
+                    ? null
+                    : EncryptString(settings.GitHubToken),
+                ProxyPasswordEncrypted = string.IsNullOrEmpty(settings.ProxyPassword)
+                    ? null
+                    : EncryptString(settings.ProxyPassword),
+                UseProxy = settings.UseProxy,
+                ProxyHost = settings.ProxyHost,
+                ProxyPort = settings.ProxyPort,
+                ProxyUsername = settings.ProxyUsername,
+                FileExtensions = [..settings.FileExtensions]
+            };
 
             var serializer = new XmlSerializer(typeof(AppSettings));
             using var writer = new StreamWriter(filePath);
-            serializer.Serialize(writer, settings);
+            serializer.Serialize(writer, copy);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"{context}Error: Could not save settings to {filePath}. Error: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {filePath}.");
             throw;
         }

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Navigation;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Services;
 using RetroGameCoverDownloader.Views;
@@ -11,6 +12,7 @@ namespace RetroGameCoverDownloader;
 public partial class MainWindow
 {
     private readonly ViewModels.MainViewModel _viewModel;
+    private bool _isClosing;
 
     public MainWindow()
     {
@@ -24,16 +26,20 @@ public partial class MainWindow
     {
         try
         {
-            // Check for Token on startup
-            var settings = SettingsManager.LoadSettings();
-
-            if (string.IsNullOrWhiteSpace(settings.GitHubToken))
+            if (!_viewModel.HasGitHubToken)
             {
                 var dialog = new TokenDialog { Owner = this };
                 if (dialog.ShowDialog() == true)
                 {
                     try
                     {
+                        if (string.IsNullOrEmpty(dialog.Token) && _viewModel.HasGitHubToken)
+                        {
+                            _viewModel.Log("[MainWindow.GitHubTokenMenuItem_Click] Token unchanged.");
+                            return;
+                        }
+
+                        var settings = SettingsManager.LoadSettings();
                         settings.GitHubToken = dialog.Token;
                         SettingsManager.SaveSettings(settings);
 
@@ -65,26 +71,26 @@ public partial class MainWindow
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            _viewModel.CancelAll();
-            _viewModel.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _ = BugReportService.LogErrorAsync(ex, "Error during cleanup.");
-        }
-
-        System.Windows.Application.Current.Shutdown();
-
-        _ = Task.Delay(3000).ContinueWith(static _ => Environment.Exit(0));
+        Close();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (_isClosing) return;
+
+        _isClosing = true;
+
         try
         {
             _viewModel.CancelAll();
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, "Error during cancel.");
+        }
+
+        try
+        {
             _viewModel.Dispose();
         }
         catch (Exception ex)
@@ -147,7 +153,7 @@ public partial class MainWindow
     {
         try
         {
-            var dialog = new TokenDialog { Owner = this };
+            var dialog = new TokenDialog(_viewModel.HasGitHubToken) { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 try
@@ -227,5 +233,37 @@ public partial class MainWindow
             viewModel?.Log($"Error opening About window: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "Error opening About window");
         }
+    }
+
+    private async void CheckForUpdatesMenuItem_ClickAsync(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DataContext is ViewModels.MainViewModel viewModel)
+            {
+                viewModel.Log("Checking for updates...");
+                await UpdateCheckerService.CheckForUpdateAsync(viewModel.Log);
+            }
+        }
+        catch (Exception ex)
+        {
+            var viewModel = DataContext as ViewModels.MainViewModel;
+            viewModel?.Log($"Error checking for updates: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Error checking for updates from menu.");
+        }
+    }
+
+    private void UpdateHyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            UpdateCheckerService.OpenUrlInBrowser(e.Uri.AbsoluteUri);
+        }
+        catch (Exception ex)
+        {
+            _ = BugReportService.LogErrorAsync(ex, $"Error opening update URL: {e.Uri.AbsoluteUri}");
+        }
+
+        e.Handled = true;
     }
 }

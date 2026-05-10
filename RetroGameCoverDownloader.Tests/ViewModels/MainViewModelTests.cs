@@ -424,7 +424,7 @@ public class MainViewModelTests
     #region Token / Proxy Updates
 
     [Fact]
-    public void UpdateTokenSwapsServiceAndDisposesOld()
+    public void UpdateTokenSwapsServiceAndDoesNotDisposeImmediately()
     {
         var oldService = new FakeGitHubService();
         var newService = new FakeGitHubService();
@@ -434,18 +434,21 @@ public class MainViewModelTests
         try
         {
             vm.UpdateToken("new-token");
+
+            Assert.False(oldService.Disposed, "Old service should NOT be disposed immediately to avoid race with in-flight operations.");
+            Assert.Contains("token updated", vm.LogText, StringComparison.OrdinalIgnoreCase);
+
+            vm.Dispose();
+            Assert.True(oldService.Disposed, "Old service should be disposed when ViewModel is disposed (drained from orphan queue).");
         }
         finally
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
         }
-
-        Assert.True(oldService.Disposed);
-        Assert.Contains("token updated", vm.LogText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void UpdateProxySettingsSwapsServiceAndDisposesOld()
+    public void UpdateProxySettingsSwapsServiceAndDoesNotDisposeImmediately()
     {
         var oldService = new FakeGitHubService();
         var newService = new FakeGitHubService();
@@ -453,8 +456,11 @@ public class MainViewModelTests
 
         vm.UpdateProxySettings(true, "proxy", 8080, "user", "pass");
 
-        Assert.True(oldService.Disposed);
+        Assert.False(oldService.Disposed, "Old service should NOT be disposed immediately to avoid race with in-flight operations.");
         Assert.Contains("Proxy settings updated", vm.LogText, StringComparison.OrdinalIgnoreCase);
+
+        vm.Dispose();
+        Assert.True(oldService.Disposed, "Old service should be disposed when ViewModel is disposed (drained from orphan queue).");
     }
 
     private class TestableMainViewModelWithFactory : MainViewModel

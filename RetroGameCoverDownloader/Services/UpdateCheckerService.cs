@@ -1,19 +1,16 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Net.Http;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Windows;
 using RetroGameCoverDownloader.Helpers;
-using MessageBox = System.Windows.MessageBox;
+using RetroGameCoverDownloader.Models;
 
 namespace RetroGameCoverDownloader.Services;
 
 public static partial class UpdateCheckerService
 {
     private const string RepoOwner = "drpetersonfernandes";
-    private const string RepoName = "CSharp_RetroGameCoverDownloader";
+    private const string RepoName = "RetroGameCoverDownloader";
     private const string LatestApiUrl = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
 
     private static readonly HttpClient Http = new()
@@ -21,90 +18,87 @@ public static partial class UpdateCheckerService
         Timeout = TimeSpan.FromSeconds(10)
     };
 
-    public static async Task CheckForUpdateAsync()
+    public static event Action<UpdateInfo>? UpdateAvailable;
+
+    public static async Task CheckForUpdateAsync(Action<string>? logAction = null)
     {
         try
         {
-            // GitHub rejects requests without a User-Agent header.
             if (!Http.DefaultRequestHeaders.Contains("User-Agent"))
                 Http.DefaultRequestHeaders.Add("User-Agent", $"{RepoName}-UpdateChecker");
 
-            using var resp = await RetryOnTransientErrorAsync(static () => Http.GetAsync(LatestApiUrl));
-            if (!resp.IsSuccessStatusCode) return; // silent if offline or GitHub unhappy
+            using var resp = await RetryHelper.RetryOnTransientErrorAsync(
+                static () => Http.GetAsync(LatestApiUrl),
+                logAction: logAction);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                logAction?.Invoke($"Update check: GitHub API returned {(int)resp.StatusCode} ({resp.StatusCode}).");
+                return;
+            }
 
             await using var jsonStream = await resp.Content.ReadAsStreamAsync();
             using var doc = await JsonDocument.ParseAsync(jsonStream);
 
             var tagName = doc.RootElement.GetProperty("tag_name").GetString();
             var htmlUrl = doc.RootElement.GetProperty("html_url").GetString();
-            if (tagName is null || htmlUrl is null) return;
+            if (tagName is null || htmlUrl is null)
+            {
+                logAction?.Invoke("Update check: Could not read release information from API response.");
+                return;
+            }
 
-            // We expect tags like "v1.0.2" or "release_1.0.2" – pick the 1.0.2 part.
             var m = MyRegex().Match(tagName);
-            if (!m.Success) return;
+            if (!m.Success)
+            {
+                logAction?.Invoke($"Update check: Could not parse version from tag '{tagName}'.");
+                return;
+            }
 
             var latest = Version.Parse(m.Value);
             var current = AppInfo.Version;
 
-            if (latest <= current) return; // up-to-date
-
-            var message = new StringBuilder();
-            message.AppendLine("A newer version of Retro Game Cover Downloader is available:");
-            message.AppendLine();
-            message.AppendLine(CultureInfo.InvariantCulture, $"  Current Version: {current}");
-            message.AppendLine(CultureInfo.InvariantCulture, $"  Latest Version : {latest}");
-            message.AppendLine();
-            message.Append("Would you like to open the release page in your browser?");
-
-            var result = MessageBox.Show(message.ToString(), "Update Available", MessageBoxButton.YesNo, MessageBoxImage.Information);
-
-            if (result != MessageBoxResult.Yes)
+            if (latest <= current)
+            {
+                logAction?.Invoke($"Update check: You are running the latest version ({current}).");
                 return;
+            }
 
-            try
+            logAction?.Invoke($"Update available: {latest} (current: {current})");
+
+            UpdateAvailable?.Invoke(new UpdateInfo
             {
-                ProcessStartInfo psi = new()
-                {
-                    FileName = htmlUrl,
-                    UseShellExecute = true
-                };
-                Process.Start(psi);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Could not launch browser automatically: {ex.Message}\n\nYou can open the page manually:\n{htmlUrl}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                LatestVersion = latest,
+                ReleaseUrl = htmlUrl
+            });
         }
         catch (Exception ex)
         {
-            // Non-fatal: log and continue silently
+            logAction?.Invoke($"Update check failed: {ex.Message}");
             BugReportService.LogErrorSync(ex, "UpdateCheckerService.CheckForUpdateAsync");
         }
     }
 
-    private static async Task<T> RetryOnTransientErrorAsync<T>(Func<Task<T>> action, int maxRetries = 3, CancellationToken cancellationToken = default)
+    public static void OpenUrlInBrowser(string url)
     {
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        try
         {
-            try
+            ProcessStartInfo psi = new()
             {
-                return await action();
-            }
-            catch (Exception ex) when (attempt < maxRetries && IsTransientError(ex))
-            {
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 1.5);
-                await Task.Delay(delay, cancellationToken);
-            }
+                FileName = url,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
         }
-
-        return await action();
-    }
-
-    private static bool IsTransientError(Exception ex)
-    {
-        return ex is TaskCanceledException { InnerException: TimeoutException }
-            or HttpRequestException { InnerException: System.Net.Sockets.SocketException };
+        catch (Exception ex)
+        {
+            BugReportService.LogErrorSync(ex, $"UpdateCheckerService.OpenUrlInBrowser: {url}");
+            System.Windows.MessageBox.Show(
+                $"Could not launch browser automatically: {ex.Message}\n\nYou can open the page manually:\n{url}",
+                "Error",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+        }
     }
 
     [GeneratedRegex(@"\d+\.\d+\.\d+(?:\.\d+)?")]

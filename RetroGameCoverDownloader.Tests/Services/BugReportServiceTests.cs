@@ -11,52 +11,46 @@ public class BugReportServiceTests
     [Fact]
     public void LogErrorSyncWithSingleThreadedSynchronizationContextDoesNotDeadlock()
     {
-        var originalFactory = BugReportService.HttpClientFactory;
-        BugReportService.InvalidateHttpClient();
-        BugReportService.HttpClientFactory = static () => new HttpClient(new ImmediateOkHandler());
+        var realService = new BugReportService
+        {
+            HttpClientFactory = static () => new HttpClient(new ImmediateOkHandler())
+        };
+        realService.InvalidateHttpClient();
 
         var syncContext = new SingleThreadSynchronizationContext();
         Exception? caughtException = null;
         var completed = false;
 
-        try
+        var worker = new Thread(() =>
         {
-            var worker = new Thread(() =>
+            SynchronizationContext.SetSynchronizationContext(syncContext);
+            syncContext.Run(() =>
             {
-                SynchronizationContext.SetSynchronizationContext(syncContext);
-                syncContext.Run(() =>
+                try
                 {
-                    try
-                    {
-                        BugReportService.LogErrorSync(
-                            new InvalidOperationException("test exception"),
-                            "deadlock scenario test");
-                        completed = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        caughtException = ex;
-                    }
-                });
-            })
-            {
-                IsBackground = true
-            };
-
-            worker.Start();
-            var finished = worker.Join(TimeSpan.FromSeconds(5));
-
-            Assert.True(
-                finished,
-                "LogErrorSync deadlocked when executed on a thread with a single-threaded SynchronizationContext.");
-            Assert.True(completed, "LogErrorSync did not complete successfully.");
-            Assert.Null(caughtException);
-        }
-        finally
+                    ((IBugReportService)realService).LogErrorSync(
+                        new InvalidOperationException("test exception"),
+                        "deadlock scenario test");
+                    completed = true;
+                }
+                catch (Exception ex)
+                {
+                    caughtException = ex;
+                }
+            });
+        })
         {
-            BugReportService.HttpClientFactory = originalFactory;
-            BugReportService.InvalidateHttpClient();
-        }
+            IsBackground = true
+        };
+
+        worker.Start();
+        var finished = worker.Join(TimeSpan.FromSeconds(5));
+
+        Assert.True(
+            finished,
+            "LogErrorSync deadlocked when executed on a thread with a single-threaded SynchronizationContext.");
+        Assert.True(completed, "LogErrorSync did not complete successfully.");
+        Assert.Null(caughtException);
     }
 
     private class ImmediateOkHandler : HttpMessageHandler

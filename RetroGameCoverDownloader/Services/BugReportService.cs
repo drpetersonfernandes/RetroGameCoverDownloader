@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -8,13 +9,15 @@ using RetroGameCoverDownloader.Helpers;
 
 namespace RetroGameCoverDownloader.Services;
 
-public static class BugReportService
+public class BugReportService : IBugReportService
 {
     private const string ApiKey = "hjh7yu6t56tyr540o9u8767676r5674534453235264c75b6t7ggghgg76trf564e";
     private const string BugReportApiUrl = "https://www.purelogiccode.com/bugreport/api/send-bug-report";
 
     private const string ApplicationName = "RetroGameCoverDownloader";
-    internal static Func<HttpClient> HttpClientFactory { get; set; } = CreateDefaultHttpClient;
+    internal Func<HttpClient> HttpClientFactory { get; set; } = CreateDefaultHttpClient;
+
+    internal static IBugReportService Current { get; set; } = new BugReportService();
 
     private static HttpClient CreateDefaultHttpClient()
     {
@@ -24,44 +27,29 @@ public static class BugReportService
         };
     }
 
-    private static readonly object HttpClientLock = new();
-    private static HttpClient? _httpClientInstance;
+    private readonly object _httpClientLock = new();
+    private HttpClient? _httpClientInstance;
 
-    private static HttpClient GetHttpClient()
+    private HttpClient GetHttpClient()
     {
-        lock (HttpClientLock)
+        lock (_httpClientLock)
         {
-            if (_httpClientInstance is not null)
-                return _httpClientInstance;
-        }
-
-        lock (HttpClientLock)
-        {
-            _httpClientInstance ??= HttpClientFactory();
-        }
-
-        lock (HttpClientLock)
-        {
-            return _httpClientInstance;
+            return _httpClientInstance ??= HttpClientFactory();
         }
     }
 
-    internal static void InvalidateHttpClient()
+    internal void InvalidateHttpClient()
     {
-        lock (HttpClientLock)
+        lock (_httpClientLock)
         {
             _httpClientInstance?.Dispose();
             _httpClientInstance = null;
         }
     }
 
-    private static readonly string BaseDirectory = AppContext.BaseDirectory;
-    private static readonly string ErrorLogFilePath = Path.Combine(BaseDirectory, "error.log");
-    private static readonly string CriticalLogFilePath = Path.Combine(BaseDirectory, "critical_error.log");
-
-    static BugReportService()
-    {
-    }
+    private readonly string _baseDirectory = AppContext.BaseDirectory;
+    private string ErrorLogFilePath => Path.Combine(_baseDirectory, "error.log");
+    private string CriticalLogFilePath => Path.Combine(_baseDirectory, "critical_error.log");
 
     private static string GetEnvironmentDetails()
     {
@@ -123,7 +111,27 @@ public static class BugReportService
         return sb.ToString();
     }
 
+    void IBugReportService.LogErrorSync(Exception? ex, string? contextMessage)
+    {
+        CoreLogErrorSync(ex, contextMessage);
+    }
+
     public static void LogErrorSync(Exception? ex, string? contextMessage = null)
+    {
+        Current.LogErrorSync(ex, contextMessage);
+    }
+
+    Task IBugReportService.LogErrorAsync(Exception? ex, string? contextMessage)
+    {
+        return CoreLogErrorAsync(ex, contextMessage);
+    }
+
+    public static Task LogErrorAsync(Exception? ex, string? contextMessage = null)
+    {
+        return Current.LogErrorAsync(ex, contextMessage);
+    }
+
+    private void CoreLogErrorSync(Exception? ex, string? contextMessage)
     {
         if (ex == null)
         {
@@ -151,10 +159,9 @@ public static class BugReportService
             WriteToCriticalLog(writeEx, $"Failed to write main error to '{ErrorLogFilePath}'. Original error: {ex.Message}");
         }
 
-        // Synchronously wait for the API call to ensure it completes before process termination
         try
         {
-            SendLogToApiAsync(ex, contextMessage).GetAwaiter().GetResult();
+            Task.Run(async () => await SendLogToApiAsync(ex, contextMessage).ConfigureAwait(false)).GetAwaiter().GetResult();
         }
         catch (Exception apiEx)
         {
@@ -162,7 +169,7 @@ public static class BugReportService
         }
     }
 
-    public static async Task LogErrorAsync(Exception? ex, string? contextMessage = null)
+    private async Task CoreLogErrorAsync(Exception? ex, string? contextMessage)
     {
         if (ex == null)
         {
@@ -193,7 +200,7 @@ public static class BugReportService
         await SendLogToApiAsync(ex, contextMessage);
     }
 
-    private static async Task<bool> SendLogToApiAsync(Exception ex, string contextMessage)
+    private async Task<bool> SendLogToApiAsync(Exception ex, string contextMessage)
     {
         try
         {
@@ -239,7 +246,7 @@ public static class BugReportService
         }
     }
 
-    private static void WriteToCriticalLog(Exception ex, string contextMessage)
+    private void WriteToCriticalLog(Exception ex, string contextMessage)
     {
         try
         {
@@ -257,9 +264,9 @@ public static class BugReportService
 
             File.AppendAllText(CriticalLogFilePath, criticalContent.ToString(), Encoding.UTF8);
         }
-        catch (Exception)
+        catch (Exception logEx)
         {
-            // Can't do much more here.
+            Debug.WriteLine($"CRITICAL: Failed to write to critical log file '{CriticalLogFilePath}'. Context: {contextMessage}. Error: {logEx.Message}");
         }
     }
 }

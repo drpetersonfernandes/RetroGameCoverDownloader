@@ -6,27 +6,41 @@ using RetroGameCoverDownloader.Helpers;
 
 namespace RetroGameCoverDownloader.Services;
 
-public static class ApplicationStatsService
+public class ApplicationStatsService
 {
     private const string StatsApiUrl = "https://www.purelogiccode.com/ApplicationStats/stats";
     private const string ApiKey = "hjh7yu6t56tyr540o9u8767676r5674534453235264c75b6t7ggghgg76trf564e";
     private const string ApplicationId = "retro-game-cover-downloader";
 
-    private static readonly HttpClient HttpClientInstance;
+    internal Func<HttpClient> HttpClientFactory { get; set; } = CreateDefaultHttpClient;
 
-    static ApplicationStatsService()
+    internal static ApplicationStatsService Current { get; set; } = new();
+
+    private static HttpClient CreateDefaultHttpClient()
     {
-        HttpClientInstance = new HttpClient
+        return new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(15)
         };
     }
 
-    /// <summary>
-    /// Tracks application launch by sending usage statistics to the central ApplicationStats API.
-    /// This method is fire-and-forget; failures are silently ignored.
-    /// </summary>
-    public static async Task TrackLaunchAsync()
+    private readonly object _httpClientLock = new();
+    private HttpClient? _httpClientInstance;
+
+    private HttpClient GetHttpClient()
+    {
+        lock (_httpClientLock)
+        {
+            return _httpClientInstance ??= HttpClientFactory();
+        }
+    }
+
+    public static Task TrackLaunchAsync()
+    {
+        return Current.TrackLaunchCoreAsync();
+    }
+
+    private async Task TrackLaunchCoreAsync()
     {
         try
         {
@@ -48,8 +62,7 @@ public static class ApplicationStatsService
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
 
-            using var response = await HttpClientInstance.SendAsync(request);
-            // Intentionally ignoring the response; fire-and-forget telemetry.
+            using var response = await GetHttpClient().SendAsync(request);
         }
         catch (Exception ex)
         {

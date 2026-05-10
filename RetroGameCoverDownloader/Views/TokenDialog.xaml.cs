@@ -10,16 +10,33 @@ public partial class TokenDialog
 {
     public string Token { get; private set; } = "";
 
-    public TokenDialog()
+    public bool HasExistingToken { get; }
+
+    public TokenDialog(bool hasExistingToken = false)
     {
+        HasExistingToken = hasExistingToken;
         InitializeComponent();
+
+        if (HasExistingToken)
+        {
+            ExistingTokenPanel.Visibility = Visibility.Visible;
+            TokenBox.Focus();
+        }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            Token = TokenBox.Text.Trim();
+            var entered = TokenBox.Password.Trim();
+            if (string.IsNullOrEmpty(entered) && HasExistingToken)
+            {
+                Token = "";
+                DialogResult = true;
+                return;
+            }
+
+            Token = entered;
             DialogResult = true;
         }
         catch (Exception ex)

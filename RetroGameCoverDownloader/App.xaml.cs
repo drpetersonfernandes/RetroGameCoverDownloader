@@ -116,6 +116,12 @@ public partial class App
         }
     }
 
+    protected override void OnExit(ExitEventArgs e)
+    {
+        base.OnExit(e);
+        Environment.Exit(0);
+    }
+
     private static void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         e.Handled = true;

@@ -12,6 +12,7 @@
     <Grid ToolTip="Main application layout">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Menu -->
+            <RowDefinition Height="Auto"/> <!-- Update Banner -->
             <RowDefinition Height="*"/>    <!-- Content -->
         </Grid.RowDefinitions>
         
@@ -46,6 +47,13 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Help" ToolTip="Help and information">
+                <MenuItem Header="_Check for Updates" Click="CheckForUpdatesMenuItem_ClickAsync"
+                          ToolTip="Check GitHub for a newer version of this application">
+                    <MenuItem.Icon>
+                        <StaticResource ResourceKey="UpdateIcon"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator ToolTip="Menu separator"/>
                 <MenuItem Header="_About" Click="AboutMenuItem_Click"
                           ToolTip="View application version and credits">
                     <MenuItem.Icon>
@@ -55,9 +63,43 @@
                 </MenuItem>
             </MenuItem>
         </Menu>
+
+        <!-- Update Notification Banner -->
+        <Border Grid.Row="1" Background="{StaticResource UpdateBannerBackgroundColor}"
+                BorderBrush="{StaticResource UpdateBannerBorderColor}" BorderThickness="0,1,0,1"
+                Padding="10,8" Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibilityConverter}}"
+                ToolTip="Update notification banner showing a new version is available">
+            <Grid ToolTip="Update notification details and actions">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                           Style="{StaticResource BannerTextStyle}"
+                           Foreground="{StaticResource UpdateBannerTextColor}"
+                           ToolTip="A new version is available for download">
+                    <Run Text="{Binding UpdateVersionText, Mode=OneWay}"/>
+                    <Run Text=" — "/>
+                    <Hyperlink x:Name="UpdateHyperlink" NavigateUri="{Binding UpdateReleaseUrl, Mode=OneWay}"
+                               RequestNavigate="UpdateHyperlink_RequestNavigate"
+                               Style="{StaticResource BannerLinkStyle}"
+                               Foreground="{StaticResource UpdateBannerLinkColor}"
+                               ToolTip="Click to open the download page for the latest version">
+                        <Run Text="Download now"/>
+                    </Hyperlink>
+                </TextBlock>
+                <Button Grid.Column="1" Content="Download" Command="{Binding OpenUpdateUrlCommand}"
+                        Margin="10,0,5,0" Height="26" Width="80"
+                        ToolTip="Open the release page in your browser"/>
+                <Button Grid.Column="2" Content="✕" Command="{Binding DismissUpdateCommand}"
+                        Width="26" Height="26" Padding="0" Margin="0,0,0,0"
+                        ToolTip="Dismiss this notification"/>
+            </Grid>
+        </Border>
         
         <!-- Original Content Grid -->
-        <Grid Grid.Row="1" Margin="10">
+        <Grid Grid.Row="2" Margin="10" ToolTip="Main content area for ROM folder, system selection, progress, and log">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Inputs -->
             <RowDefinition Height="Auto"/> <!-- System Select -->

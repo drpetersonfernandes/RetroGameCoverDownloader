@@ -21,7 +21,13 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 🐛 **Error Reporting** - Automatic bug reports to help improve the application  
 ⏹️ **Cancellation Support** - Cancel operations anytime  
 📊 **Progress UI** - Real-time progress bar and status messages  
-🖥️ **CLI Support** - Command-line arguments for automation
+🖥️ **CLI Support** - Command-line arguments for automation  
+🌐 **Proxy Support** - Configure HTTP proxy with host, port, and authenticated credentials  
+📂 **File Extensions Configuration** - Customize which file extensions are recognized as ROM files  
+🔒 **Settings Encryption** - Tokens and passwords are encrypted using Windows DPAPI  
+🔁 **Retry with Exponential Backoff** - Automatic retry on transient failures with intelligent backoff  
+⚡ **Circuit Breaker** - Protects against hammering distressed servers during outages  
+💾 **Systems Cache** - Caches the available systems list for faster startup and offline resilience
 
 ## 🖼️ Screenshots
 
@@ -44,14 +50,13 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 ### GitHub Token (Recommended)
 To unlock the full 4,900 downloads/hour limit:
 
-1. Click **File → Exit** (or wait for the token prompt on first launch)
-2. Click the "GitHub Token Setup" button
-3. Follow the in-app instructions or:
+1. Go to **File → GitHub Token** in the menu bar (the token dialog also appears automatically on first launch)
+2. Follow the in-app instructions or:
     - Visit [GitHub Token Settings](https://github.com/settings/tokens/new)
     - Generate a token with **`public_repo`** scope
     - Copy and paste it into the application
 
-> **💡 Tip**: Without a token, you're limited to ~50 covers/hour. With a token, you can download thousands!
+> **💡 Tip**: Without a token, you're limited to ~55 covers/hour. With a token, you can download thousands!
 
 ## 🚀 Usage
 
@@ -64,14 +69,14 @@ To unlock the full 4,900 downloads/hour limit:
 
 ### Command-Line Mode
 ```bash
-# Basic usage
-RetroGameCoverDownloader.exe "C:\Covers\SNES" "C:\ROMs\SNES"
+# Basic usage (ROM folder first, then Cover folder)
+RetroGameCoverDownloader.exe "C:\ROMs\SNES" "C:\Covers\SNES"
 
 # With flags
 RetroGameCoverDownloader.exe --cover "C:\Covers" --rom "C:\ROMs"
 
-# Positional arguments (Cover folder first, then ROM folder)
-RetroGameCoverDownloader.exe "C:\Covers" "C:\ROMs"
+# Positional arguments (ROM folder first, then Cover folder)
+RetroGameCoverDownloader.exe "C:\ROMs" "C:\Covers"
 ```
 
 ## 🛠️ Technical Details
@@ -81,13 +86,25 @@ RetroGameCoverDownloader.exe "C:\Covers" "C:\ROMs"
 - **Async/Await**: Fully asynchronous operations for UI responsiveness
 - **Rate Limiting**: Custom `RateLimiter` service with event notifications
 - **Error Handling**: Comprehensive logging and bug reporting
+- **Circuit Breaker**: Tracks consecutive 503 errors and triggers cooldown to avoid hammering distressed servers
+- **Retry Logic**: Exponential backoff with configurable retry attempts
 
 ### Key Components
 - `MainViewModel`: Core business logic and state management
 - `GitHubService`: Handles all GitHub API interactions
 - `BugReportService`: Automatic error reporting to developer
-- `SettingsManager`: XML-based settings persistence
+- `SettingsManager`: XML-based settings persistence with DPAPI encryption for sensitive data
 - `RateLimiter`: Intelligent API request throttling
+- `UpdateCheckerService`: Checks for new application versions
+
+### Testing
+The project includes a comprehensive test suite using **xunit**:
+
+```bash
+dotnet test
+```
+
+Tests cover models, services, helpers, converters, commands, ViewModels, managers, and integration tests. A `MockBugReportService` is injected via `[ModuleInitializer]` to prevent real API calls during testing.
 
 ## 📄 License
 
