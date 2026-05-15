@@ -27,6 +27,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     internal volatile HashSet<string> FileExtensions = new(StringComparer.OrdinalIgnoreCase);
 
     // Data
+    // ReSharper disable once CollectionNeverQueried.Global
     public ObservableCollection<SystemConfig> Systems { get; } = [];
     internal readonly List<CoverDownloadItem> ItemsToDownload = [];
     private readonly StringBuilder _logBuilder = new();
@@ -616,7 +617,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         catch (DirectoryNotFoundException ex)
         {
             Log($"[MainViewModel.PrepareDownloadAsync] {ex.Message}");
-            _ = BugReportService.LogErrorAsync(ex, "One or more configured folders do not exist.");
+            StatusMessage = ex.Message;
         }
         catch (Exception ex)
         {
