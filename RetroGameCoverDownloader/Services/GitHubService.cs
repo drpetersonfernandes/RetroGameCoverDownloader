@@ -30,6 +30,8 @@ public class GitHubService : IGitHubService
         remove => _rateLimiter.OnRateLimitHit -= value;
     }
 
+    public event Action? UnauthorizedAccess;
+
     private static readonly string SystemsCacheDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RetroGameCoverDownloader");
     private static readonly string DefaultSystemsCacheFilePath = Path.Combine(SystemsCacheDirectory, "systems_cache.json");
 
@@ -147,6 +149,18 @@ public class GitHubService : IGitHubService
 
                 logAction("No cached system list available.");
                 throw;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                logAction($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                UnauthorizedAccess?.Invoke();
+
+                var cached = await LoadSystemsFromCacheAsync();
+                if (cached != null)
+                {
+                    logAction("Using cached system list due to authentication error.");
+                    return cached;
+                }
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
@@ -278,6 +292,10 @@ public class GitHubService : IGitHubService
                     case HttpStatusCode.InternalServerError:
                         logAction($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
                         return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction, cancellationToken);
+                    case HttpStatusCode.Unauthorized:
+                        logAction($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                        UnauthorizedAccess?.Invoke();
+                        continue;
                     case HttpStatusCode.Forbidden:
                         logAction($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");
                         continue;

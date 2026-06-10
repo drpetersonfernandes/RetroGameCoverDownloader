@@ -11,6 +11,7 @@ using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Models;
 using RetroGameCoverDownloader.Services;
 using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.ViewModels;
 
@@ -116,6 +117,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             // Subscribe to the Rate Limit event
             _gitHubService.RateLimitHit += OnRateLimitHit;
+            _gitHubService.UnauthorizedAccess += OnUnauthorizedAccess;
         }
         catch (Exception ex)
         {
@@ -246,9 +248,11 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             // Unsubscribe from old service and swap atomically
             _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.UnauthorizedAccess -= OnUnauthorizedAccess;
             var oldService = Interlocked.Exchange(ref _gitHubService, newService);
             _orphanedServices.Enqueue(oldService);
             newService.RateLimitHit += OnRateLimitHit;
+            newService.UnauthorizedAccess += OnUnauthorizedAccess;
 
             // Store the current token for future proxy updates
             _currentToken = token;
@@ -278,9 +282,11 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             // Unsubscribe from old service and swap atomically
             _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.UnauthorizedAccess -= OnUnauthorizedAccess;
             var oldService = Interlocked.Exchange(ref _gitHubService, newService);
             _orphanedServices.Enqueue(oldService);
             newService.RateLimitHit += OnRateLimitHit;
+            newService.UnauthorizedAccess += OnUnauthorizedAccess;
 
             var proxyStatus = AppSettings.FormatProxyStatus(useProxy, proxyHost, proxyPort);
             Log($"[MainViewModel.UpdateProxySettings] Proxy settings updated. Proxy: {proxyStatus}");
@@ -318,6 +324,59 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             Log($"[MainViewModel.OnRateLimitHit] Error handling rate limit: {ex.Message}");
             _ = BugReportService.LogErrorAsync(ex, "Exception while processing rate limit hit event.");
+        }
+    }
+
+    private void OnUnauthorizedAccess()
+    {
+        try
+        {
+            InvokeOnDispatcher(() =>
+            {
+                try
+                {
+                    Log("[OnUnauthorizedAccess] GitHub returned 401 Unauthorized. Prompting for token...");
+                    MessageBox.Show(
+                        "GitHub returned a 401 Unauthorized error.\n\n" +
+                        "Your GitHub token may be missing, invalid, or expired.\n" +
+                        "Please enter a valid Personal Access Token to continue.",
+                        "GitHub Authentication Required",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+
+                    var dialog = new Views.TokenDialog(HasGitHubToken) { Owner = Application.Current.MainWindow };
+                    if (dialog.ShowDialog() == true)
+                    {
+                        if (!string.IsNullOrEmpty(dialog.Token))
+                        {
+                            var settings = SettingsManager.LoadSettings();
+                            settings.GitHubToken = dialog.Token;
+                            SettingsManager.SaveSettings(settings);
+
+                            UpdateToken(dialog.Token);
+                            Log("[OnUnauthorizedAccess] New GitHub token saved and applied.");
+                        }
+                        else
+                        {
+                            Log("[OnUnauthorizedAccess] No new token provided. Continuing with limited access.");
+                        }
+                    }
+                    else
+                    {
+                        Log("[OnUnauthorizedAccess] Token dialog cancelled. Continuing with limited access.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"[OnUnauthorizedAccess] Error handling unauthorized access: {ex.Message}");
+                    _ = BugReportService.LogErrorAsync(ex, "Exception while handling unauthorized access event.");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Log($"[OnUnauthorizedAccess] Error dispatching to UI thread: {ex.Message}");
+            _ = BugReportService.LogErrorAsync(ex, "Exception dispatching unauthorized access to UI thread.");
         }
     }
 
@@ -852,6 +911,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             _gitHubService.RateLimitHit -= OnRateLimitHit;
+            _gitHubService.UnauthorizedAccess -= OnUnauthorizedAccess;
         }
         catch (Exception ex)
         {

@@ -5,6 +5,7 @@ namespace RetroGameCoverDownloader.Services;
 public interface IGitHubService : IDisposable
 {
     event Action<TimeSpan>? RateLimitHit;
+    event Action? UnauthorizedAccess;
 
     Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default);
 
