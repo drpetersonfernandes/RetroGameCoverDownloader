@@ -137,6 +137,7 @@ public class GitHubService : IGitHubService
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
             {
+                lastException = ex;
                 var errorMsg = $"{context}GitHub API rate limit exceeded on branch '{branch}'. {ex.Message}";
                 logAction(errorMsg);
 
@@ -147,11 +148,11 @@ public class GitHubService : IGitHubService
                     return cached;
                 }
 
-                logAction("No cached system list available.");
-                throw;
+                logAction("No cached system list available. Trying next branch...");
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
             {
+                lastException = ex;
                 logAction($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
                 UnauthorizedAccess?.Invoke();
 

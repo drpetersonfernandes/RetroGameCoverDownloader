@@ -43,6 +43,7 @@ public static class RetryHelper
             return statusCode switch
             {
                 >= HttpStatusCode.InternalServerError => true,
+                HttpStatusCode.Forbidden => true,
                 >= HttpStatusCode.BadRequest => statusCode is HttpStatusCode.RequestTimeout or TooManyRequests,
                 _ => httpEx.InnerException is SocketException
             };

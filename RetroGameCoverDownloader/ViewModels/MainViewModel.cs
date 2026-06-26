@@ -105,6 +105,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         };
         _countdownTimer.Tick += OnTimerTick;
 
+        // ReSharper disable once VirtualMemberCallInConstructor
         _gitHubService = gitHubService ?? CreateGitHubService(
             settings.GitHubToken,
             settings.UseProxy,
