@@ -54,7 +54,6 @@ public static class SettingsManager
         if (!File.Exists(filePath))
             return new AppSettings();
 
-        _loadedFromPath = filePath;
         return LoadFromDat(filePath);
     }
 
@@ -75,7 +74,6 @@ public static class SettingsManager
         var encrypted = EncryptBytes(plainBytes);
 
         File.WriteAllBytes(filePath, encrypted);
-        _loadedFromPath = filePath;
     }
 
     private static AppSettings LoadFromDat(string filePath)
@@ -86,6 +84,11 @@ public static class SettingsManager
             var plainBytes = DecryptBytes(encrypted);
             var json = Encoding.UTF8.GetString(plainBytes);
             return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+        }
+        catch (CryptographicException ex)
+        {
+            Log.Error(ex, "[SettingsManager] Settings file is corrupt or was encrypted on a different machine. Creating new settings.");
+            return new AppSettings();
         }
         catch (Exception ex)
         {

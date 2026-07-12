@@ -21,7 +21,7 @@ public static class RetryHelper
             {
                 return await action();
             }
-            catch (Exception ex) when (attempt < retrySettings.MaxRetries && IsTransientError(ex))
+            catch (Exception ex) when (attempt < retrySettings.MaxRetries && IsTransientError(ex, retrySettings))
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * retrySettings.BackoffMultiplierSeconds);
                 Log.Information("Retry {Attempt}/{MaxRetries} after {Delay:F0}s: {ExceptionType}", attempt, retrySettings.MaxRetries, delay.TotalSeconds, ex.GetType().Name);
@@ -34,8 +34,10 @@ public static class RetryHelper
 
     private const HttpStatusCode TooManyRequests = (HttpStatusCode)429;
 
-    public static bool IsTransientError(Exception ex)
+    public static bool IsTransientError(Exception ex, RetrySettings? settings = null)
     {
+        var retryOnForbidden = settings?.RetryOnForbidden ?? true;
+
         if (ex is HttpRequestException httpEx)
         {
             var statusCode = httpEx.StatusCode;
@@ -43,7 +45,7 @@ public static class RetryHelper
             return statusCode switch
             {
                 >= HttpStatusCode.InternalServerError => true,
-                HttpStatusCode.Forbidden => true,
+                HttpStatusCode.Forbidden => retryOnForbidden,
                 >= HttpStatusCode.BadRequest => statusCode is HttpStatusCode.RequestTimeout or TooManyRequests,
                 _ => httpEx.InnerException is SocketException
             };

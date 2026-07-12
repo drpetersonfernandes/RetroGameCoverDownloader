@@ -13,7 +13,7 @@ public class UiLogSink : ILogEventSink
 
         UiLogMessage?.Invoke(formatted);
 
-        if (logEvent.Level >= LogEventLevel.Warning)
+        if (logEvent.Level >= LogEventLevel.Error)
         {
             var message = logEvent.RenderMessage();
             var ex = logEvent.Exception ?? new Exception(message);

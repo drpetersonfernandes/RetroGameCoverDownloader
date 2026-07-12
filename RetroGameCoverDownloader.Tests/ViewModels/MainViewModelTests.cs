@@ -477,6 +477,11 @@ public class MainViewModelTests
         // ReSharper disable once ConvertToAutoProperty
         protected override string SettingsFilePath => _settingsFilePath;
 
+        protected override void InvokeOnDispatcher(Action action)
+        {
+            action();
+        }
+
         protected override IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
         {
             return _next;

@@ -491,6 +491,16 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 var idx = formatted.IndexOf("] ", StringComparison.Ordinal);
                 var status = idx >= 0 ? formatted[(idx + 2)..] : formatted;
+
+                if (status.StartsWith("ERROR: ", StringComparison.Ordinal))
+                {
+                    status = status["ERROR: ".Length..];
+                }
+                else if (status.StartsWith("WARNING: ", StringComparison.Ordinal))
+                {
+                    status = status["WARNING: ".Length..];
+                }
+
                 StatusMessage = status;
             }
         });

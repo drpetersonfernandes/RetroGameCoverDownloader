@@ -227,10 +227,12 @@ public class GitHubService : IGitHubService
 
         Exception? firstException;
 
+        var rawRetrySettings = new RetrySettings { RetryOnForbidden = false };
+
         try
         {
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            return await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), _retrySettings, cancellationToken);
+            return await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), rawRetrySettings, cancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
         {

@@ -7,5 +7,7 @@ public class RetrySettings
     public int CircuitBreakerThreshold { get; init; } = 5;
     public int CircuitBreakerCooldownSeconds { get; init; } = 30;
 
+    public bool RetryOnForbidden { get; init; } = true;
+
     public static RetrySettings Default { get; } = new();
 }
