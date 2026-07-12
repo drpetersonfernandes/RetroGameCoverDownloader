@@ -1,8 +1,8 @@
-# 🎮 Retro Game Cover Downloader
-
 [![C#](https://img.shields.io/badge/C%23-.NET%2010.0-blue.svg)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Desktop%20App-blue.svg)](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
 [![GitHub](https://img.shields.io/badge/GitHub-API%20Integration-lightgrey.svg)](https://docs.github.com/en/rest)
+
+# 🎮 Retro Game Cover Downloader
 
 A sleek, modern WPF application that automatically downloads missing cover art for your retro game ROM collection from the official [libretro-thumbnails](https://github.com/libretro-thumbnails) GitHub repositories.
 
@@ -31,8 +31,7 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 
 ## 🖼️ Screenshots
 
-![Screenshot](screenshot1.png)
-![Screenshot](screenshot2.png)
+![Screenshot](screenshot.png)
 
 ## 📦 Installation
 
