@@ -1,48 +1,58 @@
-<Window x:Class="RetroGameCoverDownloader.MainWindow"
-         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-         mc:Ignorable="d"
-        Title="Retro Game Cover Downloader" Height="600" Width="800" WindowStartupLocation="CenterScreen"
-        Closing="MainWindow_Closing"
-        ToolTip="Download retro game cover art from libretro-thumbnails repositories">
+<ui:FluentWindow x:Class="RetroGameCoverDownloader.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 mc:Ignorable="d"
+                 Title="Retro Game Cover Downloader"
+                 Height="640" Width="820"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 Closing="MainWindow_Closing"
+                 ToolTip="Download retro game cover art from libretro-thumbnails repositories">
 
     <!-- Main Layout Grid -->
     <Grid ToolTip="Main application layout">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <!-- Menu -->
-            <RowDefinition Height="Auto"/> <!-- Update Banner -->
-            <RowDefinition Height="*"/>    <!-- Content -->
+            <RowDefinition Height="Auto" /> <!-- Title Bar -->
+            <RowDefinition Height="Auto" /> <!-- Menu -->
+            <RowDefinition Height="Auto" /> <!-- Update Banner -->
+            <RowDefinition Height="*" />    <!-- Content -->
         </Grid.RowDefinitions>
-        
+
+        <!-- Fluent Title Bar -->
+        <ui:TitleBar Grid.Row="0" Title="Retro Game Cover Downloader" ToolTip="Application title bar">
+        </ui:TitleBar>
+
         <!-- Menu Bar -->
-        <Menu Grid.Row="0" ToolTip="Application menu">
+        <Menu Grid.Row="1" ToolTip="Application menu">
             <MenuItem Header="_File" ToolTip="File and settings options">
                 <MenuItem Header="_Proxy Settings" Click="ProxySettingsMenuItem_Click"
                           ToolTip="Configure a proxy server for network-restricted environments">
                     <MenuItem.Icon>
-                        <StaticResource ResourceKey="ProxyIcon"/>
+                        <StaticResource ResourceKey="ProxyIcon" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="_GitHub Token" Click="GitHubTokenMenuItem_Click"
                           ToolTip="Enter or change your GitHub personal access token">
                     <MenuItem.Icon>
-                        <StaticResource ResourceKey="TokenIcon"/>
+                        <StaticResource ResourceKey="TokenIcon" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="_File Extensions" Click="FileExtensionsMenuItem_Click"
                           ToolTip="Manage file extensions scanned as ROMs">
                     <MenuItem.Icon>
-                        <StaticResource ResourceKey="FileExtensionsIcon"/>
+                        <StaticResource ResourceKey="FileExtensionsIcon" />
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator ToolTip="Separator"/>
+                <Separator ToolTip="Separator" />
                 <MenuItem Header="_Exit" Click="ExitMenuItem_Click"
                           ToolTip="Close the application">
                     <MenuItem.Icon>
                         <Image Source="pack://application:,,,/images/exit.png" Style="{StaticResource MenuItemIconStyle}"
-                               ToolTip="Exit application icon"/>
+                               ToolTip="Exit application icon" />
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
@@ -50,138 +60,138 @@
                 <MenuItem Header="_Check for Updates" Click="CheckForUpdatesMenuItem_ClickAsync"
                           ToolTip="Check GitHub for a newer version of this application">
                     <MenuItem.Icon>
-                        <StaticResource ResourceKey="UpdateIcon"/>
+                        <StaticResource ResourceKey="UpdateIcon" />
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator ToolTip="Menu separator"/>
+                <Separator ToolTip="Menu separator" />
                 <MenuItem Header="_About" Click="AboutMenuItem_Click"
                           ToolTip="View application version and credits">
                     <MenuItem.Icon>
                         <Image Source="pack://application:,,,/images/about.png" Style="{StaticResource MenuItemIconStyle}"
-                               ToolTip="About window icon"/>
+                               ToolTip="About window icon" />
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
         </Menu>
 
         <!-- Update Notification Banner -->
-        <Border Grid.Row="1" Background="{StaticResource UpdateBannerBackgroundColor}"
+        <Border Grid.Row="2" Background="{StaticResource UpdateBannerBackgroundColor}"
                 BorderBrush="{StaticResource UpdateBannerBorderColor}" BorderThickness="0,1,0,1"
                 Padding="10,8" Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibilityConverter}}"
                 ToolTip="Update notification banner showing a new version is available">
             <Grid ToolTip="Update notification details and actions">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
                            Style="{StaticResource BannerTextStyle}"
                            Foreground="{StaticResource UpdateBannerTextColor}"
                            ToolTip="A new version is available for download">
-                    <Run Text="{Binding UpdateVersionText, Mode=OneWay}"/>
-                    <Run Text=" — "/>
+                    <Run Text="{Binding UpdateVersionText, Mode=OneWay}" />
+                    <Run Text=" — " />
                     <Hyperlink x:Name="UpdateHyperlink" NavigateUri="{Binding UpdateReleaseUrl, Mode=OneWay}"
                                RequestNavigate="UpdateHyperlink_RequestNavigate"
                                Style="{StaticResource BannerLinkStyle}"
                                Foreground="{StaticResource UpdateBannerLinkColor}"
                                ToolTip="Click to open the download page for the latest version">
-                        <Run Text="Download now"/>
+                        <Run Text="Download now" />
                     </Hyperlink>
                 </TextBlock>
                 <Button Grid.Column="1" Content="Download" Command="{Binding OpenUpdateUrlCommand}"
                         Margin="10,0,5,0" Height="26" Width="80"
-                        ToolTip="Open the release page in your browser"/>
+                        ToolTip="Open the release page in your browser" />
                 <Button Grid.Column="2" Content="✕" Command="{Binding DismissUpdateCommand}"
                         Width="26" Height="26" Padding="0" Margin="0,0,0,0"
-                        ToolTip="Dismiss this notification"/>
+                        ToolTip="Dismiss this notification" />
             </Grid>
         </Border>
-        
-        <!-- Original Content Grid -->
-        <Grid Grid.Row="2" Margin="10" ToolTip="Main content area for ROM folder, system selection, progress, and log">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <!-- Inputs -->
-            <RowDefinition Height="Auto"/> <!-- System Select -->
-            <RowDefinition Height="Auto"/> <!-- Buttons -->
-            <RowDefinition Height="Auto"/> <!-- Progress -->
-            <RowDefinition Height="*"/>    <!-- Log -->
-        </Grid.RowDefinitions>
 
-        <!-- 1 & 2: Folder Inputs -->
-        <Grid Grid.Row="0" ToolTip="Select your ROM folder and destination folder for cover art">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+        <!-- Original Content Grid -->
+        <Grid Grid.Row="3" Margin="10" ToolTip="Main content area for ROM folder, system selection, progress, and log">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto" /> <!-- Inputs -->
+                <RowDefinition Height="Auto" /> <!-- System Select -->
+                <RowDefinition Height="Auto" /> <!-- Buttons -->
+                <RowDefinition Height="Auto" /> <!-- Progress -->
+                <RowDefinition Height="*" />    <!-- Log -->
             </Grid.RowDefinitions>
 
-            <TextBlock Text="ROM Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
-                       ToolTip="Path to the folder containing your ROM files"/>
-            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RomFolderPath}"
-                     Style="{StaticResource ReadOnlyFieldStyle}"
-                     ToolTip="Selected ROM folder path (read-only, use the Browse button to change)"/>
-            <Button Grid.Row="0" Grid.Column="2" Content="Set ROM Folder" Command="{Binding BrowseRomCommand}"
-                    Style="{StaticResource BrowseButtonStyle}"
-                    ToolTip="Browse for the folder containing your ROM files"/>
+            <!-- 1 & 2: Folder Inputs -->
+            <Grid Grid.Row="0" ToolTip="Select your ROM folder and destination folder for cover art">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Cover Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
-                       ToolTip="Path to the folder where downloaded cover art will be saved"/>
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CoverFolderPath}"
-                     Style="{StaticResource ReadOnlyFieldStyle}"
-                     ToolTip="Selected cover art destination folder (read-only, use the Browse button to change)"/>
-            <Button Grid.Row="1" Grid.Column="2" Content="Set Cover Folder" Command="{Binding BrowseCoverCommand}"
-                    Style="{StaticResource BrowseButtonStyle}"
-                    ToolTip="Browse for the folder to save downloaded cover art"/>
-        </Grid>
+                <TextBlock Text="ROM Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
+                           ToolTip="Path to the folder containing your ROM files" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RomFolderPath}"
+                         Style="{StaticResource ReadOnlyFieldStyle}"
+                         ToolTip="Selected ROM folder path (read-only, use the Browse button to change)" />
+                <Button Grid.Row="0" Grid.Column="2" Content="Set ROM Folder" Command="{Binding BrowseRomCommand}"
+                        Style="{StaticResource BrowseButtonStyle}"
+                        ToolTip="Browse for the folder containing your ROM files" />
 
-        <!-- 3: System Dropdown -->
-        <StackPanel Grid.Row="1" Margin="0,0,0,10" ToolTip="System selection area">
-            <TextBlock Text="Select System:" Style="{StaticResource SectionHeadingStyle}"
-                       ToolTip="Choose the game system to download covers for"/>
-            <ComboBox ItemsSource="{Binding Systems}" 
-                       SelectedItem="{Binding SelectedSystem}"
-                       DisplayMemberPath="SystemName"
-                       IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                       ToolTip="Select the game system whose covers you want to download (populated from GitHub)"/> 
-        </StackPanel>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Cover Folder:" VerticalAlignment="Center" Margin="0,0,10,10"
+                           ToolTip="Path to the folder where downloaded cover art will be saved" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CoverFolderPath}"
+                         Style="{StaticResource ReadOnlyFieldStyle}"
+                         ToolTip="Selected cover art destination folder (read-only, use the Browse button to change)" />
+                <Button Grid.Row="1" Grid.Column="2" Content="Set Cover Folder" Command="{Binding BrowseCoverCommand}"
+                        Style="{StaticResource BrowseButtonStyle}"
+                        ToolTip="Browse for the folder to save downloaded cover art" />
+            </Grid>
 
-        <!-- 4, 5, 6: Buttons -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10" ToolTip="Action buttons">
-            <Button Content="Prepare for Download" Command="{Binding PrepareCommand}"
-                    Width="150" Style="{StaticResource ActionButtonStyle}"
-                    ToolTip="Scan ROM folder and match with available covers on GitHub"/>
-            <Button Content="Download Covers" Command="{Binding DownloadCommand}"
-                    Width="150" Style="{StaticResource ActionButtonStyle}"
-                    ToolTip="Start downloading matched cover art files"/>
-            <Button Content="Cancel" Command="{Binding CancelCommand}"
-                    Width="100" Style="{StaticResource ActionButtonStyle}"
-                    ToolTip="Cancel the current download or preparation operation"/>
-        </StackPanel>
+            <!-- 3: System Dropdown -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,10" ToolTip="System selection area">
+                <TextBlock Text="Select System:" Style="{StaticResource SectionHeadingStyle}"
+                           ToolTip="Choose the game system to download covers for" />
+                <ComboBox ItemsSource="{Binding Systems}"
+                          SelectedItem="{Binding SelectedSystem}"
+                          DisplayMemberPath="SystemName"
+                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
+                          ToolTip="Select the game system whose covers you want to download (populated from GitHub)" />
+            </StackPanel>
 
-        <!-- Progress Bar Section -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,10" ToolTip="Progress and status area">
-            <!-- TextBlock for the Status/Clock -->
-            <TextBlock Text="{Binding StatusMessage}" 
-                        Style="{StaticResource StatusTextStyle}"
-                        ToolTip="Current operation status and progress messages"/>
-            
-            <ProgressBar Height="20" 
-                          Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"
-                          ToolTip="Download progress bar showing completed vs total covers"/>
-        </StackPanel>
+            <!-- 4, 5, 6: Buttons -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10" ToolTip="Action buttons">
+                <Button Content="Prepare for Download" Command="{Binding PrepareCommand}"
+                        Width="170" Style="{StaticResource ActionButtonStyle}"
+                        ToolTip="Scan ROM folder and match with available covers on GitHub" />
+                <Button Content="Download Covers" Command="{Binding DownloadCommand}"
+                        Width="170" Style="{StaticResource ActionButtonStyle}"
+                        ToolTip="Start downloading matched cover art files" />
+                <Button Content="Cancel" Command="{Binding CancelCommand}"
+                        Width="100" Style="{StaticResource ActionButtonStyle}"
+                        ToolTip="Cancel the current download or preparation operation" />
+            </StackPanel>
 
-        <!-- Log Window -->
-        <GroupBox Grid.Row="4" Header="Log" ToolTip="Detailed log of all operations and events">
-            <TextBox Text="{Binding LogText}" 
-                      Style="{StaticResource LogTextStyle}"
-                      TextChanged="TextBox_TextChanged"
-                      ToolTip="Real-time log output showing scan results, download status, and errors"/>
-        </GroupBox>
+            <!-- Progress Bar Section -->
+            <StackPanel Grid.Row="3" Margin="0,0,0,10" ToolTip="Progress and status area">
+                <!-- TextBlock for the Status/Clock -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           Style="{StaticResource StatusTextStyle}"
+                           ToolTip="Current operation status and progress messages" />
+
+                <ProgressBar Height="20"
+                             Minimum="0" Maximum="{Binding ProgressMax}" Value="{Binding ProgressValue}"
+                             ToolTip="Download progress bar showing completed vs total covers" />
+            </StackPanel>
+
+            <!-- Log Window -->
+            <GroupBox Grid.Row="4" Header="Log" ToolTip="Detailed log of all operations and events">
+                <TextBox Text="{Binding LogText}"
+                         Style="{StaticResource LogTextStyle}"
+                         TextChanged="TextBox_TextChanged"
+                         ToolTip="Real-time log output showing scan results, download status, and errors" />
+            </GroupBox>
         </Grid>
     </Grid>
-</Window>
+</ui:FluentWindow>

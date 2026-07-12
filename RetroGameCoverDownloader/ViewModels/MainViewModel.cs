@@ -72,7 +72,6 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public MainViewModel() : this(LoadSettingsSafe(), null, false)
     {
-        UiLogSink.UiLogMessage += OnUILogMessage;
     }
 
     private static AppSettings LoadSettingsSafe()

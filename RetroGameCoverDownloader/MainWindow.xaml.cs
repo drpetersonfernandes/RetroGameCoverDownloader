@@ -50,7 +50,6 @@ public partial class MainWindow
         }
         else
         {
-            Log.Information("[MainWindow] F8 global hotkey registered. Press F8 to take a screenshot of the active window.");
         }
     }
 
