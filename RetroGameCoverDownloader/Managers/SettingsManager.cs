@@ -24,7 +24,10 @@ public static class SettingsManager
 
     private static readonly byte[] Key = DeriveAesKey();
 
-    public static string DefaultSettingsFilePath => _loadedFromPath ?? AppFolderPath;
+    // When nothing has been loaded yet, default to the (writable) per-user AppData
+    // location. This must match the fallback used by SaveSettings() so that
+    // DefaultSettingsFilePath and the actual save target stay consistent.
+    public static string DefaultSettingsFilePath => _loadedFromPath ?? AppDataPath;
 
     public static AppSettings LoadSettings()
     {
@@ -65,15 +68,23 @@ public static class SettingsManager
 
     public static void SaveSettings(AppSettings settings, string filePath)
     {
-        var directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
+        try
+        {
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
 
-        var json = JsonSerializer.Serialize(settings);
-        var plainBytes = Encoding.UTF8.GetBytes(json);
-        var encrypted = EncryptBytes(plainBytes);
+            var json = JsonSerializer.Serialize(settings);
+            var plainBytes = Encoding.UTF8.GetBytes(json);
+            var encrypted = EncryptBytes(plainBytes);
 
-        File.WriteAllBytes(filePath, encrypted);
+            File.WriteAllBytes(filePath, encrypted);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, $"[SettingsManager] Failed to save settings to {filePath}.");
+            throw;
+        }
     }
 
     private static AppSettings LoadFromDat(string filePath)

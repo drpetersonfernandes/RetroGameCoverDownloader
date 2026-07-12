@@ -36,7 +36,7 @@ public static class RetryHelper
 
     public static bool IsTransientError(Exception ex, RetrySettings? settings = null)
     {
-        var retryOnForbidden = settings?.RetryOnForbidden ?? true;
+        var retryOnForbidden = settings?.RetryOnForbidden ?? false;
 
         if (ex is HttpRequestException httpEx)
         {

@@ -6,6 +6,8 @@ namespace RetroGameCoverDownloader.Services;
 
 public class UiLogSink : ILogEventSink
 {
+    private const int MaxBufferedMessages = 1000;
+
     private static readonly ConcurrentQueue<string> Buffer = new();
     private static volatile Action<string>? _uiHandler;
 
@@ -32,13 +34,20 @@ public class UiLogSink : ILogEventSink
         else
         {
             Buffer.Enqueue(formatted);
+
+            // Cap the buffer so log messages can't accumulate unbounded
+            // when no UI handler is ever attached (e.g. headless/test hosts).
+            while (Buffer.Count > MaxBufferedMessages && Buffer.TryDequeue(out _))
+            {
+            }
         }
 
-        if (logEvent.Level >= LogEventLevel.Error)
+        // Auto-report genuine errors that carry an exception. Fatal-level events
+        // are intentionally excluded: the global crash handlers in App.xaml.cs
+        // report those synchronously, so reporting here too would duplicate them.
+        if (logEvent is { Level: LogEventLevel.Error, Exception: not null })
         {
-            var message = logEvent.RenderMessage();
-            var ex = logEvent.Exception ?? new Exception(message);
-            _ = BugReportService.LogErrorAsync(ex, message);
+            _ = BugReportService.LogErrorAsync(logEvent.Exception, logEvent.RenderMessage());
         }
     }
 

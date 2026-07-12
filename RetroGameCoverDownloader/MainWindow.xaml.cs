@@ -48,9 +48,6 @@ public partial class MainWindow
         {
             Log.Information("[MainWindow] Failed to register F8 global hotkey. It may be in use by another application.");
         }
-        else
-        {
-        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

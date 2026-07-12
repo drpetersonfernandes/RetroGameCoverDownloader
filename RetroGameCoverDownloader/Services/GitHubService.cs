@@ -33,6 +33,20 @@ public class GitHubService : IGitHubService
 
     public event Action? UnauthorizedAccess;
 
+    // Ensures the UnauthorizedAccess event is raised at most once per service instance,
+    // so a single failed operation that hits 401 on multiple branches does not prompt
+    // the user (message box + token dialog) more than once. A new token creates a new
+    // GitHubService, which naturally resets this guard.
+    private int _unauthorizedNotified;
+
+    private void RaiseUnauthorized()
+    {
+        if (Interlocked.Exchange(ref _unauthorizedNotified, 1) == 0)
+        {
+            UnauthorizedAccess?.Invoke();
+        }
+    }
+
     private static readonly string SystemsCacheDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RetroGameCoverDownloader");
     private static readonly string DefaultSystemsCacheFilePath = Path.Combine(SystemsCacheDirectory, "systems_cache.json");
 
@@ -155,7 +169,7 @@ public class GitHubService : IGitHubService
             {
                 lastException = ex;
                 Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
-                UnauthorizedAccess?.Invoke();
+                RaiseUnauthorized();
 
                 var cached = await LoadSystemsFromCacheAsync();
                 if (cached != null)
@@ -298,7 +312,7 @@ public class GitHubService : IGitHubService
                         return await GetSystemFilesLargeRepoFallbackAsync(system, branch, cancellationToken);
                     case HttpStatusCode.Unauthorized:
                         Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
-                        UnauthorizedAccess?.Invoke();
+                        RaiseUnauthorized();
                         continue;
                     case HttpStatusCode.Forbidden:
                         Log.Information($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");

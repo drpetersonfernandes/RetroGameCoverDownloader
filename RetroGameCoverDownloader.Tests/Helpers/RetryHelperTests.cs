@@ -138,10 +138,18 @@ public class RetryHelperTests
     }
 
     [Fact]
-    public void IsTransientErrorForbiddenReturnsTrue()
+    public void IsTransientErrorForbiddenReturnsFalseByDefault()
     {
         var ex = new HttpRequestException("forbidden", null, HttpStatusCode.Forbidden);
-        Assert.True(RetryHelper.IsTransientError(ex));
+        Assert.False(RetryHelper.IsTransientError(ex));
+    }
+
+    [Fact]
+    public void IsTransientErrorForbiddenReturnsTrueWhenRetryOnForbiddenEnabled()
+    {
+        var ex = new HttpRequestException("forbidden", null, HttpStatusCode.Forbidden);
+        var settings = new RetrySettings { RetryOnForbidden = true };
+        Assert.True(RetryHelper.IsTransientError(ex, settings));
     }
 
     [Fact]

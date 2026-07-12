@@ -233,12 +233,12 @@ public class GitHubServiceTests
     }
 
     [Fact]
-    public void IsTransientErrorReturnsTrueFor403()
+    public void IsTransientErrorReturnsFalseFor403()
     {
         var ex = new HttpRequestException("Forbidden", null, HttpStatusCode.Forbidden);
         var result = RetryHelper.IsTransientError(ex);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 
     [Fact]
