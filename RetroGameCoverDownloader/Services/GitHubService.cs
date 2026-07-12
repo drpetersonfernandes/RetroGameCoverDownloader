@@ -323,8 +323,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 var errorMsg = $"{context}Error fetching files: {ex.Message}";
-                Log.Information(errorMsg);
-                Log.Error(ex, $"{context}Exception while fetching system files on branch '{branch}', trying next branch.");
+                Log.Error(ex, errorMsg);
             }
         }
 
@@ -374,7 +373,6 @@ public class GitHubService : IGitHubService
         }
         catch (Exception ex)
         {
-            Log.Information($"Fallback failed: {ex.Message}");
             Log.Error(ex, "GetSystemFilesLargeRepoFallbackAsync failed.");
         }
 

@@ -59,7 +59,7 @@ public static class SettingsManager
 
     public static void SaveSettings(AppSettings settings)
     {
-        var path = _loadedFromPath ?? AppFolderPath;
+        var path = _loadedFromPath ?? AppDataPath;
         SaveSettings(settings, path);
     }
 
@@ -103,8 +103,8 @@ public static class SettingsManager
         {
             var settings = LegacyXmlParser(legacyPath);
 
-            // Save to new format at the app folder path
-            var datPath = AppFolderPath;
+            // Save to new format at the app data path
+            var datPath = AppDataPath;
             var json = JsonSerializer.Serialize(settings);
             var plainBytes = Encoding.UTF8.GetBytes(json);
             var encrypted = EncryptBytes(plainBytes);

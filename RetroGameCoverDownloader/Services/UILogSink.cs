@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Serilog.Core;
 using Serilog.Events;
 
@@ -5,13 +6,33 @@ namespace RetroGameCoverDownloader.Services;
 
 public class UiLogSink : ILogEventSink
 {
-    public static event Action<string>? UiLogMessage;
+    private static readonly ConcurrentQueue<string> Buffer = new();
+    private static volatile Action<string>? _uiHandler;
+
+    public static void SetUiHandler(Action<string>? handler)
+    {
+        _uiHandler = handler;
+
+        if (handler != null)
+        {
+            while (Buffer.TryDequeue(out var msg))
+                handler(msg);
+        }
+    }
 
     public void Emit(LogEvent logEvent)
     {
         var formatted = FormatLogEvent(logEvent);
 
-        UiLogMessage?.Invoke(formatted);
+        var handler = _uiHandler;
+        if (handler != null)
+        {
+            handler(formatted);
+        }
+        else
+        {
+            Buffer.Enqueue(formatted);
+        }
 
         if (logEvent.Level >= LogEventLevel.Error)
         {
