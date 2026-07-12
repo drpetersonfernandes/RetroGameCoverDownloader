@@ -40,7 +40,7 @@ public class MainViewModelIntegrationTests
             return;
         }
 
-        var (_, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system, static _ => { });
+        var (_, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system);
 
         if (files.Count == 0)
         {

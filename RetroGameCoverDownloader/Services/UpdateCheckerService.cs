@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
+using Serilog;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -20,20 +21,18 @@ public static partial class UpdateCheckerService
 
     public static event Action<UpdateInfo>? UpdateAvailable;
 
-    public static async Task CheckForUpdateAsync(Action<string>? logAction = null)
+    public static async Task CheckForUpdateAsync()
     {
         try
         {
             if (!Http.DefaultRequestHeaders.Contains("User-Agent"))
                 Http.DefaultRequestHeaders.Add("User-Agent", $"{RepoName}-UpdateChecker");
 
-            using var resp = await RetryHelper.RetryOnTransientErrorAsync(
-                static () => Http.GetAsync(LatestApiUrl),
-                logAction: logAction);
+            using var resp = await RetryHelper.RetryOnTransientErrorAsync(static () => Http.GetAsync(LatestApiUrl));
 
             if (!resp.IsSuccessStatusCode)
             {
-                logAction?.Invoke($"Update check: GitHub API returned {(int)resp.StatusCode} ({resp.StatusCode}).");
+                Log.Information("Update check: GitHub API returned {StatusCode} ({Status}).", (int)resp.StatusCode, resp.StatusCode);
                 return;
             }
 
@@ -44,14 +43,14 @@ public static partial class UpdateCheckerService
             var htmlUrl = doc.RootElement.GetProperty("html_url").GetString();
             if (tagName is null || htmlUrl is null)
             {
-                logAction?.Invoke("Update check: Could not read release information from API response.");
+                Log.Information("Update check: Could not read release information from API response.");
                 return;
             }
 
             var m = MyRegex().Match(tagName);
             if (!m.Success)
             {
-                logAction?.Invoke($"Update check: Could not parse version from tag '{tagName}'.");
+                Log.Information("Update check: Could not parse version from tag '{TagName}'.", tagName);
                 return;
             }
 
@@ -60,11 +59,11 @@ public static partial class UpdateCheckerService
 
             if (latest <= current)
             {
-                logAction?.Invoke($"Update check: You are running the latest version ({current}).");
+                Log.Information("Update check: You are running the latest version ({Current}).", current);
                 return;
             }
 
-            logAction?.Invoke($"Update available: {latest} (current: {current})");
+            Log.Information("Update available: {Latest} (current: {Current})", latest, current);
 
             UpdateAvailable?.Invoke(new UpdateInfo
             {
@@ -74,31 +73,54 @@ public static partial class UpdateCheckerService
         }
         catch (Exception ex)
         {
-            logAction?.Invoke($"Update check failed: {ex.Message}");
-            BugReportService.LogErrorSync(ex, "UpdateCheckerService.CheckForUpdateAsync");
+            Log.Error(ex, "Update checker failed.");
         }
     }
 
     public static void OpenUrlInBrowser(string url)
     {
+        if (TryOpenWithShellExecute(url)) return;
+        if (TryOpenWithCmdStart(url)) return;
+
+        try { System.Windows.Clipboard.SetText(url); }
+        catch
+        {
+            // ignored
+        }
+
+        Log.Error("All browser-launch strategies failed for URL: {Url}", url);
+
+        System.Windows.MessageBox.Show(
+            $"Could not launch the browser automatically.\n\nThe URL has been copied to your clipboard:\n\n{url}",
+            "Error",
+            System.Windows.MessageBoxButton.OK,
+            System.Windows.MessageBoxImage.Error);
+    }
+
+    private static bool TryOpenWithShellExecute(string url)
+    {
         try
         {
-            ProcessStartInfo psi = new()
-            {
-                FileName = url,
-                UseShellExecute = true
-            };
-            Process.Start(psi);
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            return true;
         }
-        catch (Exception ex)
+        catch { return false; }
+    }
+
+    private static bool TryOpenWithCmdStart(string url)
+    {
+        try
         {
-            BugReportService.LogErrorSync(ex, $"UpdateCheckerService.OpenUrlInBrowser: {url}");
-            System.Windows.MessageBox.Show(
-                $"Could not launch browser automatically: {ex.Message}\n\nYou can open the page manually:\n{url}",
-                "Error",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c start \"\" \"{url}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            return true;
         }
+        catch { return false; }
     }
 
     [GeneratedRegex(@"\d+\.\d+\.\d+(?:\.\d+)?")]

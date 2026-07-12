@@ -121,7 +121,7 @@ public class GitHubServiceTests
         var system = new SystemConfig("TestSystem", "test-owner", "test-repo", "Named_Boxarts");
 
         // Act
-        await service.GetSystemFilesAsync(system, static _ => { });
+        await service.GetSystemFilesAsync(system);
 
         // Assert: both responses should be disposed by the 'using var' statements
         Assert.True(responseMain.IsDisposed, "Expected the 404 response for 'main' branch to be disposed.");
@@ -150,7 +150,7 @@ public class GitHubServiceTests
         var system = new SystemConfig("TestSystem", "test-owner", "test-repo", "Named_Boxarts");
 
         // Act
-        await service.GetSystemFilesAsync(system, static _ => { });
+        await service.GetSystemFilesAsync(system);
 
         // Assert: the 500 response should be disposed despite the early return path
         Assert.True(response500.IsDisposed, "Expected the 500 InternalServerError response to be disposed.");
@@ -185,7 +185,7 @@ public class GitHubServiceTests
             var client = new HttpClient(handler);
             var service = new GitHubService(client, systemsCacheFilePath: tempCachePath);
 
-            var systems = await service.GetAvailableSystemsAsync(static _ => { });
+            var systems = await service.GetAvailableSystemsAsync();
 
             Assert.Single(systems);
             Assert.Equal("Nintendo - NES", systems[0].SystemName);
@@ -221,7 +221,7 @@ public class GitHubServiceTests
             var client = new HttpClient(handler);
             var service = new GitHubService(client, systemsCacheFilePath: tempCachePath);
 
-            var systems = await service.GetAvailableSystemsAsync(static _ => { });
+            var systems = await service.GetAvailableSystemsAsync();
 
             Assert.Single(systems);
             Assert.Equal("Cached System", systems[0].SystemName);

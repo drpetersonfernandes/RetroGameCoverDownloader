@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
+using Serilog;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -91,7 +92,7 @@ public class GitHubService : IGitHubService
         catch (Exception ex)
         {
             handler.Dispose();
-            _ = BugReportService.LogErrorAsync(ex, "Failed to initialize HttpClient in GitHubService.");
+            Log.Error(ex, "Failed to initialize HttpClient in GitHubService.");
             throw new InvalidOperationException("Failed to initialize HttpClient in GitHubService.", ex);
         }
 
@@ -117,7 +118,7 @@ public class GitHubService : IGitHubService
         }
     }
 
-    public async Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default)
+    public async Task<List<SystemConfig>> GetAvailableSystemsAsync(CancellationToken cancellationToken = default)
     {
         const string context = "[GetAvailableSystemsAsync] ";
 
@@ -128,7 +129,7 @@ public class GitHubService : IGitHubService
         {
             try
             {
-                var systems = await TryFetchSystemsForBranchAsync(branch, logAction, cancellationToken);
+                var systems = await TryFetchSystemsForBranchAsync(branch, cancellationToken);
                 if (systems.Count > 0)
                 {
                     await SaveSystemsToCacheAsync(systems);
@@ -139,70 +140,70 @@ public class GitHubService : IGitHubService
             {
                 lastException = ex;
                 var errorMsg = $"{context}GitHub API rate limit exceeded on branch '{branch}'. {ex.Message}";
-                logAction(errorMsg);
+                Log.Information(errorMsg);
 
                 var cached = await LoadSystemsFromCacheAsync();
                 if (cached != null)
                 {
-                    logAction("Using cached system list due to rate limiting.");
+                    Log.Information("Using cached system list due to rate limiting.");
                     return cached;
                 }
 
-                logAction("No cached system list available. Trying next branch...");
+                Log.Information("No cached system list available. Trying next branch...");
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
             {
                 lastException = ex;
-                logAction($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
                 UnauthorizedAccess?.Invoke();
 
                 var cached = await LoadSystemsFromCacheAsync();
                 if (cached != null)
                 {
-                    logAction("Using cached system list due to authentication error.");
+                    Log.Information("Using cached system list due to authentication error.");
                     return cached;
                 }
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
                 lastException = ex;
-                logAction($"{context}Branch '{branch}' not found (404), trying next branch...");
+                Log.Information($"{context}Branch '{branch}' not found (404), trying next branch...");
             }
             catch (Exception ex)
             {
                 lastException = ex;
-                logAction($"{context}Error fetching systems on branch '{branch}': {ex.Message}");
+                Log.Information($"{context}Error fetching systems on branch '{branch}': {ex.Message}");
             }
         }
 
         var fallbackCached = await LoadSystemsFromCacheAsync();
         if (fallbackCached != null)
         {
-            logAction("Using cached system list due to error.");
+            Log.Information("Using cached system list due to error.");
             return fallbackCached;
         }
 
         if (lastException != null)
         {
-            await BugReportService.LogErrorAsync(lastException, $"{context}Failed to fetch available systems from GitHub.");
+            Log.Error(lastException, $"{context}Failed to fetch available systems from GitHub.");
         }
 
         return new List<SystemConfig>();
     }
 
-    private async Task<List<SystemConfig>> TryFetchSystemsForBranchAsync(string branch, Action<string> logAction, CancellationToken cancellationToken)
+    private async Task<List<SystemConfig>> TryFetchSystemsForBranchAsync(string branch, CancellationToken cancellationToken)
     {
         var systems = new List<SystemConfig>();
 
-        logAction($"Fetching .gitmodules from branch '{branch}'...");
-        var gitmodulesContent = await FetchGitmodulesAsync(branch, logAction, cancellationToken);
+        Log.Information($"Fetching .gitmodules from branch '{branch}'...");
+        var gitmodulesContent = await FetchGitmodulesAsync(branch, cancellationToken);
         var repoNameMap = ParseGitmodules(gitmodulesContent);
 
-        logAction("Fetching main repository tree...");
+        Log.Information("Fetching main repository tree...");
         var mainRepoApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/git/trees/{branch}?recursive=1";
 
         await _rateLimiter.WaitForSlotAsync(cancellationToken);
-        var jsonResponse = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+        var jsonResponse = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(mainRepoApiUrl, cancellationToken), _retrySettings, cancellationToken);
         var tree = JsonSerializer.Deserialize<GitHubTree>(jsonResponse, _jsonOptions);
 
         if (tree?.Tree != null)
@@ -219,7 +220,7 @@ public class GitHubService : IGitHubService
         return systems;
     }
 
-    private async Task<string> FetchGitmodulesAsync(string branch, Action<string> logAction, CancellationToken cancellationToken)
+    private async Task<string> FetchGitmodulesAsync(string branch, CancellationToken cancellationToken)
     {
         var context = LogContext.ForMethod();
         var rawUrl = $"https://raw.githubusercontent.com/{MainRepoOwner}/{MainRepoName}/{branch}/.gitmodules";
@@ -229,24 +230,24 @@ public class GitHubService : IGitHubService
         try
         {
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            return await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+            return await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rawUrl, cancellationToken), _retrySettings, cancellationToken);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
         {
             firstException = ex;
-            logAction($"{context}raw.githubusercontent.com rate limited ({ex.Message}), trying GitHub Contents API...");
+            Log.Information($"{context}raw.githubusercontent.com rate limited ({ex.Message}), trying GitHub Contents API...");
         }
         catch (Exception ex)
         {
             firstException = ex;
-            logAction($"{context}raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
+            Log.Information($"{context}raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
         }
 
         try
         {
             var contentsApiUrl = $"https://api.github.com/repos/{MainRepoOwner}/{MainRepoName}/contents/.gitmodules?ref={branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var json = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+            var json = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(contentsApiUrl, cancellationToken), _retrySettings, cancellationToken);
 
             using var doc = JsonDocument.Parse(json);
             var content = doc.RootElement.GetProperty("content").GetString();
@@ -268,12 +269,12 @@ public class GitHubService : IGitHubService
             var message = firstException is HttpRequestException { StatusCode: HttpStatusCode.Forbidden }
                 ? $"{context}Both raw.githubusercontent.com and GitHub Contents API returned 403 (rate limit exceeded)."
                 : $"{context}GitHub Contents API returned 403 (rate limit exceeded) after raw.githubusercontent.com fallback.";
-            logAction(message);
+            Log.Information(message);
             throw new InvalidOperationException(message, ex);
         }
     }
 
-    public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction, CancellationToken cancellationToken = default)
+    public async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, CancellationToken cancellationToken = default)
     {
         var branches = new[] { "main", "master" };
         var context = $"[GetSystemFilesAsync] System: {system.SystemName} ";
@@ -286,19 +287,19 @@ public class GitHubService : IGitHubService
                 var apiUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}?recursive=1";
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
 
-                using var response = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+                using var response = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetAsync(apiUrl, cancellationToken), _retrySettings, cancellationToken);
 
                 switch (response.StatusCode)
                 {
                     case HttpStatusCode.InternalServerError:
-                        logAction($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
-                        return await GetSystemFilesLargeRepoFallbackAsync(system, branch, logAction, cancellationToken);
+                        Log.Information($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
+                        return await GetSystemFilesLargeRepoFallbackAsync(system, branch, cancellationToken);
                     case HttpStatusCode.Unauthorized:
-                        logAction($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                        Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
                         UnauthorizedAccess?.Invoke();
                         continue;
                     case HttpStatusCode.Forbidden:
-                        logAction($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");
+                        Log.Information($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");
                         continue;
                     case HttpStatusCode.NotFound:
                         continue;
@@ -320,8 +321,8 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 var errorMsg = $"{context}Error fetching files: {ex.Message}";
-                logAction(errorMsg);
-                await BugReportService.LogErrorAsync(ex, $"{context}Exception while fetching system files on branch '{branch}', trying next branch.");
+                Log.Information(errorMsg);
+                Log.Error(ex, $"{context}Exception while fetching system files on branch '{branch}', trying next branch.");
             }
         }
 
@@ -332,7 +333,7 @@ public class GitHubService : IGitHubService
     /// Fallback for large repositories where recursive calls fail with 500 errors.
     /// Fetches the root, finds the target folder SHA, and fetches that folder's tree specifically.
     /// </summary>
-    private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, Action<string> logAction, CancellationToken cancellationToken = default)
+    private async Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesLargeRepoFallbackAsync(SystemConfig system, string branch, CancellationToken cancellationToken = default)
     {
         var context = LogContext.ForMethod();
         try
@@ -340,7 +341,7 @@ public class GitHubService : IGitHubService
             // 1. Get root tree (non-recursive)
             var rootUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{branch}";
             await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            var rootJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+            var rootJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(rootUrl, cancellationToken), _retrySettings, cancellationToken);
             var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
 
             // 2. Find the "Named_Boxarts" folder entry
@@ -353,7 +354,7 @@ public class GitHubService : IGitHubService
                 // We use the SHA of the folder to get its contents directly
                 var folderUrl = $"https://api.github.com/repos/{system.Owner}/{system.Repo}/git/trees/{folderEntry.Sha}";
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
-                var folderJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl, cancellationToken), _retrySettings, cancellationToken: cancellationToken);
+                var folderJson = await RetryHelper.RetryOnTransientErrorAsync(() => _httpClient.GetStringAsync(folderUrl, cancellationToken), _retrySettings, cancellationToken);
                 var folderTree = JsonSerializer.Deserialize<GitHubTree>(folderJson, _jsonOptions);
 
                 if (folderTree?.Tree != null)
@@ -364,27 +365,27 @@ public class GitHubService : IGitHubService
                         .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type })
                         .ToList();
 
-                    logAction($"{context}Successfully retrieved {files.Count} files via fallback method.");
+                    Log.Information($"{context}Successfully retrieved {files.Count} files via fallback method.");
                     return (branch, files);
                 }
             }
         }
         catch (Exception ex)
         {
-            logAction($"Fallback failed: {ex.Message}");
-            await BugReportService.LogErrorAsync(ex, "GetSystemFilesLargeRepoFallbackAsync failed.");
+            Log.Information($"Fallback failed: {ex.Message}");
+            Log.Error(ex, "GetSystemFilesLargeRepoFallbackAsync failed.");
         }
 
         return (string.Empty, new List<GitHubTreeItem>());
     }
 
 
-    public async Task<byte[]?> DownloadFileAsync(string url, Action<string>? logAction = null, CancellationToken cancellationToken = default)
+    public async Task<byte[]?> DownloadFileAsync(string url, CancellationToken cancellationToken = default)
     {
         const string context = "[DownloadFileAsync] ";
 
         // Feature 1: Circuit Breaker - Check if we need to pause before attempting
-        await WaitForCircuitBreakerAsync(logAction, cancellationToken);
+        await WaitForCircuitBreakerAsync(cancellationToken);
 
         for (var attempt = 1; attempt <= _retrySettings.MaxRetries; attempt++)
         {
@@ -393,7 +394,7 @@ public class GitHubService : IGitHubService
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
 
                 // Feature 2: User Feedback - Show current attempt
-                logAction?.Invoke($"Downloading attempt {attempt}...");
+                Log.Information($"Downloading attempt {attempt}...");
 
                 var data = await _httpClient.GetByteArrayAsync(url, cancellationToken);
 
@@ -417,7 +418,7 @@ public class GitHubService : IGitHubService
                     if (Interlocked.CompareExchange(ref _consecutive503Count, 0, currentCount) == currentCount)
                     {
                         Interlocked.Exchange(ref _circuitBreakerOpenUntilTicks, DateTime.UtcNow.AddSeconds(_retrySettings.CircuitBreakerCooldownSeconds).Ticks);
-                        logAction?.Invoke($"{context}⚠️ Circuit breaker triggered: {_retrySettings.CircuitBreakerThreshold} consecutive 503s detected. Cooling down for {_retrySettings.CircuitBreakerCooldownSeconds}s...");
+                        Log.Information($"{context}⚠️ Circuit breaker triggered: {_retrySettings.CircuitBreakerThreshold} consecutive 503s detected. Cooling down for {_retrySettings.CircuitBreakerCooldownSeconds}s...");
                     }
 
                     await Task.Delay(TimeSpan.FromSeconds(_retrySettings.CircuitBreakerCooldownSeconds), cancellationToken);
@@ -428,7 +429,7 @@ public class GitHubService : IGitHubService
                     var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                     // Feature 2: User Feedback - Show retry status with 503 count
-                    logAction?.Invoke($"{context}Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
+                    Log.Information($"{context}Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
                     await Task.Delay(delay, cancellationToken);
                 }
             }
@@ -437,7 +438,7 @@ public class GitHubService : IGitHubService
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                 // Feature 2: User Feedback - Show timeout retry
-                logAction?.Invoke($"{context}Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
+                Log.Information($"{context}Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
                 await Task.Delay(delay, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -447,7 +448,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log final failure after all retries exhausted or non-transient error
-                await BugReportService.LogErrorAsync(ex, $"{context}Failed on attempt {attempt} of {_retrySettings.MaxRetries}: {url}");
+                Log.Error(ex, $"{context}Failed on attempt {attempt} of {_retrySettings.MaxRetries}: {url}");
                 return null;
             }
         }
@@ -456,7 +457,7 @@ public class GitHubService : IGitHubService
     }
 
     // Feature 1: Circuit Breaker helper - Enforces the 30s pause when threshold reached
-    private Task WaitForCircuitBreakerAsync(Action<string>? logAction, CancellationToken cancellationToken)
+    private Task WaitForCircuitBreakerAsync(CancellationToken cancellationToken)
     {
         var context = LogContext.ForMethod();
         var now = DateTime.UtcNow;
@@ -464,7 +465,7 @@ public class GitHubService : IGitHubService
         if (now < openUntil)
         {
             var waitTime = openUntil - now;
-            logAction?.Invoke($"{context}Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
+            Log.Information($"{context}Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
             return Task.Delay(waitTime, cancellationToken);
         }
 
@@ -486,7 +487,7 @@ public class GitHubService : IGitHubService
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[GitHubService] Failed to save systems cache.");
+            Log.Error(ex, "[GitHubService] Failed to save systems cache.");
         }
     }
 
@@ -501,7 +502,7 @@ public class GitHubService : IGitHubService
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "[GitHubService] Failed to load systems cache.");
+            Log.Error(ex, "[GitHubService] Failed to load systems cache.");
             return null;
         }
     }
@@ -539,7 +540,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log parsing errors but continue processing other lines
-                _ = BugReportService.LogErrorAsync(ex, $"{context}Exception parsing gitmodules line: {trimmed}");
+                Log.Error(ex, $"{context}Exception parsing gitmodules line: {trimmed}");
                 currentPath = null; // Reset to avoid corrupting next entry
             }
         }

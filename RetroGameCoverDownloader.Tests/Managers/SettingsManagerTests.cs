@@ -10,14 +10,12 @@ public class SettingsManagerTests
     [Fact]
     public void LoadSettingsFileDoesNotExistReturnsDefaultSettings()
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.dat");
 
         try
         {
             if (File.Exists(tempPath))
-            {
                 File.Delete(tempPath);
-            }
 
             var settings = SettingsManager.LoadSettings(tempPath);
 
@@ -28,16 +26,14 @@ public class SettingsManagerTests
         finally
         {
             if (File.Exists(tempPath))
-            {
                 File.Delete(tempPath);
-            }
         }
     }
 
     [Fact]
     public void SaveSettingsAndLoadSettingsRoundTrip()
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.xml");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.dat");
 
         try
         {
@@ -65,9 +61,35 @@ public class SettingsManagerTests
         finally
         {
             if (File.Exists(tempPath))
-            {
                 File.Delete(tempPath);
-            }
+        }
+    }
+
+    [Fact]
+    public void SaveSettingsEncryptsFileContent()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.dat");
+
+        try
+        {
+            var settings = new AppSettings
+            {
+                GitHubToken = "ghp_secretToken123",
+                UseProxy = false
+            };
+
+            SettingsManager.SaveSettings(settings, tempPath);
+
+            var rawBytes = File.ReadAllBytes(tempPath);
+            var rawText = System.Text.Encoding.UTF8.GetString(rawBytes);
+
+            Assert.DoesNotContain("ghp_secretToken123", rawText);
+            Assert.DoesNotContain("GitHubToken", rawText);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
         }
     }
 }

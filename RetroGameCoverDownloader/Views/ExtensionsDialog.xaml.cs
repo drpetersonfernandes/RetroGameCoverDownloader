@@ -1,6 +1,6 @@
 using System.Windows;
 using RetroGameCoverDownloader.Managers;
-using RetroGameCoverDownloader.Services;
+using Serilog;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.Views;
@@ -30,7 +30,7 @@ public partial class ExtensionsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to load current extensions.");
+            Log.Error(ex, "Failed to load current extensions.");
         }
     }
 
@@ -98,7 +98,7 @@ public partial class ExtensionsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to save extensions.");
+            Log.Error(ex, "Failed to save extensions.");
             MessageBox.Show("An error occurred while saving. Please try again.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }

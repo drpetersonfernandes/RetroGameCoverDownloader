@@ -1,6 +1,5 @@
 using System.IO;
 using System.Reflection;
-using System.Xml.Serialization;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Models;
 using RetroGameCoverDownloader.Services;
@@ -27,9 +26,7 @@ public class MainViewModelTests
     private static string CreateTempSettingsFile(AppSettings? settings = null)
     {
         var path = Path.GetTempFileName();
-        var serializer = new XmlSerializer(typeof(AppSettings));
-        using var writer = new StreamWriter(path);
-        serializer.Serialize(writer, settings ?? new AppSettings());
+        SettingsManager.SaveSettings(settings ?? new AppSettings(), path);
         return path;
     }
 
@@ -39,24 +36,24 @@ public class MainViewModelTests
         public event Action<TimeSpan>? RateLimitHit;
         public event Action? UnauthorizedAccess;
 #pragma warning restore CS0067
-        public Func<Action<string>, CancellationToken, Task<List<SystemConfig>>>? OnGetAvailableSystemsAsync { get; set; }
-        public Func<SystemConfig, Action<string>, CancellationToken, Task<(string, List<GitHubTreeItem>)>>? OnGetSystemFilesAsync { get; set; }
-        public Func<string, Action<string>?, CancellationToken, Task<byte[]?>>? OnDownloadFileAsync { get; set; }
+        public Func<CancellationToken, Task<List<SystemConfig>>>? OnGetAvailableSystemsAsync { get; set; }
+        public Func<SystemConfig, CancellationToken, Task<(string, List<GitHubTreeItem>)>>? OnGetSystemFilesAsync { get; set; }
+        public Func<string, CancellationToken, Task<byte[]?>>? OnDownloadFileAsync { get; set; }
         public bool Disposed { get; private set; }
 
-        public Task<List<SystemConfig>> GetAvailableSystemsAsync(Action<string> logAction, CancellationToken cancellationToken = default)
+        public Task<List<SystemConfig>> GetAvailableSystemsAsync(CancellationToken cancellationToken = default)
         {
-            return OnGetAvailableSystemsAsync?.Invoke(logAction, cancellationToken) ?? Task.FromResult(new List<SystemConfig>());
+            return OnGetAvailableSystemsAsync?.Invoke(cancellationToken) ?? Task.FromResult(new List<SystemConfig>());
         }
 
-        public Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, Action<string> logAction, CancellationToken cancellationToken = default)
+        public Task<(string Branch, List<GitHubTreeItem> Files)> GetSystemFilesAsync(SystemConfig system, CancellationToken cancellationToken = default)
         {
-            return OnGetSystemFilesAsync?.Invoke(system, logAction, cancellationToken) ?? Task.FromResult((string.Empty, new List<GitHubTreeItem>()));
+            return OnGetSystemFilesAsync?.Invoke(system, cancellationToken) ?? Task.FromResult((string.Empty, new List<GitHubTreeItem>()));
         }
 
-        public Task<byte[]?> DownloadFileAsync(string url, Action<string>? logAction = null, CancellationToken cancellationToken = default)
+        public Task<byte[]?> DownloadFileAsync(string url, CancellationToken cancellationToken = default)
         {
-            return OnDownloadFileAsync?.Invoke(url, logAction, cancellationToken) ?? Task.FromResult<byte[]?>(null);
+            return OnDownloadFileAsync?.Invoke(url, cancellationToken) ?? Task.FromResult<byte[]?>(null);
         }
 
         public void Dispose()
@@ -255,7 +252,7 @@ public class MainViewModelTests
         vm.FilesByPath[vm.CoverFolderPath] = [@"C:\Covers\Game1.png"];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
+        fake.OnGetSystemFilesAsync = static (_, _) => Task.FromResult(("main", new List<GitHubTreeItem>
         {
             new() { Path = "Named_Boxarts/Game1.png", Type = "blob" }
         }));
@@ -277,7 +274,7 @@ public class MainViewModelTests
         vm.FilesByPath[vm.CoverFolderPath] = [];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>
+        fake.OnGetSystemFilesAsync = static (_, _) => Task.FromResult(("main", new List<GitHubTreeItem>
         {
             new() { Path = "Named_Boxarts/Super Mario Bros.png", Type = "blob" }
         }));
@@ -302,7 +299,7 @@ public class MainViewModelTests
         vm.FilesByPath[vm.CoverFolderPath] = [];
         vm.SelectedSystem = new SystemConfig("NES", "owner", "repo", "Named_Boxarts");
 
-        fake.OnGetSystemFilesAsync = static (_, _, _) => Task.FromResult(("main", new List<GitHubTreeItem>()));
+        fake.OnGetSystemFilesAsync = static (_, _) => Task.FromResult(("main", new List<GitHubTreeItem>()));
 
         await vm.PrepareDownloadAsync();
 
@@ -337,7 +334,7 @@ public class MainViewModelTests
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>([1, 2, 3]);
+        fake.OnDownloadFileAsync = static (_, _) => Task.FromResult<byte[]?>([1, 2, 3]);
 
         await vm.DownloadCoversAsync();
 
@@ -361,7 +358,7 @@ public class MainViewModelTests
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>([1, 2, 3]);
+        fake.OnDownloadFileAsync = static (_, _) => Task.FromResult<byte[]?>([1, 2, 3]);
 
         await vm.DownloadCoversAsync();
 
@@ -382,7 +379,7 @@ public class MainViewModelTests
             DownloadUrl = "http://example.com/cover.png"
         });
 
-        fake.OnDownloadFileAsync = static (_, _, _) => Task.FromResult<byte[]?>(null);
+        fake.OnDownloadFileAsync = static (_, _) => Task.FromResult<byte[]?>(null);
 
         await vm.DownloadCoversAsync();
 

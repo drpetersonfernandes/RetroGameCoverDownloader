@@ -20,7 +20,7 @@ public static class GitHubIntegrationFixture
         {
             var token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
             SharedService = new GitHubService(token);
-            Systems = SharedService.GetAvailableSystemsAsync(static msg => Console.WriteLine($"[GitHubIntegrationFixture] {msg}")).GetAwaiter().GetResult();
+            Systems = SharedService.GetAvailableSystemsAsync().GetAwaiter().GetResult();
             if (Systems.Count == 0)
             {
                 FetchError = "GetAvailableSystemsAsync returned an empty list.";

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using RetroGameCoverDownloader.Helpers;
+using Serilog;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -66,7 +67,7 @@ public class ApplicationStatsService
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to track launch telemetry.");
+            Log.Error(ex, "Failed to track launch telemetry.");
         }
     }
 }

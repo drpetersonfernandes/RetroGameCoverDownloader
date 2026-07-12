@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using RetroGameCoverDownloader.Services;
 using RetroGameCoverDownloader.ViewModels;
+using Serilog;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader;
@@ -16,6 +17,8 @@ public partial class App
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        LogConfig.Initialize();
+
         base.OnStartup(e);
 
         // Subscribe to all unhandled exception handlers to ensure every bug is forwarded
@@ -90,6 +93,7 @@ public partial class App
         {
             try
             {
+                Log.Fatal(ex, "Unhandled exception during application startup.");
                 BugReportService.LogErrorSync(ex, "Unhandled exception during application startup.");
             }
             catch (Exception logEx)
@@ -133,6 +137,7 @@ public partial class App
 
         try
         {
+            Log.Fatal(e.Exception, "An unhandled dispatcher exception occurred.");
             BugReportService.LogErrorSync(e.Exception, "An unhandled dispatcher exception occurred.");
         }
         catch (Exception logEx)
@@ -170,6 +175,7 @@ public partial class App
         try
         {
             var exception = e.ExceptionObject as Exception ?? new InvalidOperationException($"Non-exception object thrown: {e.ExceptionObject}");
+            Log.Fatal(exception, "An unhandled AppDomain exception occurred.");
             BugReportService.LogErrorSync(exception, "An unhandled AppDomain exception occurred.");
         }
         catch (Exception logEx)
@@ -209,6 +215,7 @@ public partial class App
     {
         try
         {
+            Log.Fatal(e.Exception, "An unobserved task exception occurred.");
             BugReportService.LogErrorSync(e.Exception, "An unobserved task exception occurred.");
         }
         catch (Exception logEx)

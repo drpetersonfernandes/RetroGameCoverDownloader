@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using RetroGameCoverDownloader.Managers;
-using RetroGameCoverDownloader.Services;
+using Serilog;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.Views;
@@ -36,7 +36,7 @@ public partial class ProxySettingsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to load current settings.");
+            Log.Error(ex, "Failed to load current settings.");
         }
     }
 
@@ -94,7 +94,7 @@ public partial class ProxySettingsDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to save proxy settings.");
+            Log.Error(ex, "Failed to save proxy settings.");
             MessageBox.Show("An error occurred while saving the proxy settings. Please try again.", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }

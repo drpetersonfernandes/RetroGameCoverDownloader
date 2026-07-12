@@ -35,7 +35,7 @@ public class GitHubServiceIntegrationTests
         if (isSkipped)
             throw SkipException.ForSkip($"Systems list could not be fetched: {GitHubIntegrationFixture.FetchError}");
 
-        var (branch, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system, static _ => { });
+        var (branch, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system);
 
         if (string.IsNullOrEmpty(branch) || files.Count == 0)
         {
@@ -54,7 +54,7 @@ public class GitHubServiceIntegrationTests
         if (isSkipped)
             throw SkipException.ForSkip($"Systems list could not be fetched: {GitHubIntegrationFixture.FetchError}");
 
-        var (branch, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system, static _ => { });
+        var (branch, files) = await GitHubIntegrationFixture.SharedService.GetSystemFilesAsync(system);
 
         if (string.IsNullOrEmpty(branch) || files.Count == 0)
         {
@@ -65,7 +65,7 @@ public class GitHubServiceIntegrationTests
         var encodedPath = string.Join("/", firstFile.Path.Split('/').Select(Uri.EscapeDataString));
         var url = $"https://raw.githubusercontent.com/{system.Owner}/{system.Repo}/{branch}/{encodedPath}";
 
-        var data = await GitHubIntegrationFixture.SharedService.DownloadFileAsync(url, static _ => { });
+        var data = await GitHubIntegrationFixture.SharedService.DownloadFileAsync(url);
 
         Assert.NotNull(data);
         Assert.True(data.Length > 100,

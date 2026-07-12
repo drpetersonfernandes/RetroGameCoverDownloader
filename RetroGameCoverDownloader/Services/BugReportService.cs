@@ -13,8 +13,6 @@ public class BugReportService : IBugReportService
 {
     private const string ApiKey = "hjh7yu6t56tyr540o9u8767676r5674534453235264c75b6t7ggghgg76trf564e";
     private const string BugReportApiUrl = "https://www.purelogiccode.com/bugreport/api/send-bug-report";
-
-    private const string ApplicationName = "RetroGameCoverDownloader";
     internal Func<HttpClient> HttpClientFactory { get; set; } = CreateDefaultHttpClient;
 
     internal static IBugReportService Current { get; set; } = new BugReportService();
@@ -65,7 +63,7 @@ public class BugReportService : IBugReportService
         var sb = new StringBuilder();
         sb.AppendLine("=== Environment Details ===");
         sb.AppendLine(CultureInfo.InvariantCulture, $"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"Application Name: {ApplicationName}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Application Name: {AppInfo.AppName}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"Application Version: {version}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"OS Version: {osDescription}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"Architecture: {processArchitecture}");
@@ -210,7 +208,7 @@ public class BugReportService : IBugReportService
             var payload = new
             {
                 message,
-                applicationName = ApplicationName,
+                applicationName = AppInfo.AppName,
                 version,
                 stackTrace = ex.StackTrace,
                 userInfo = contextMessage,
@@ -254,7 +252,7 @@ public class BugReportService : IBugReportService
             var criticalContent = new StringBuilder();
             criticalContent.AppendLine("--- CRITICAL LOGGING ERROR ---");
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
-            criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Application: {ApplicationName}");
+            criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Application: {AppInfo.AppName}");
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Version: {version}");
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Context: {contextMessage}");
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Exception Type: {ex.GetType().Name}");

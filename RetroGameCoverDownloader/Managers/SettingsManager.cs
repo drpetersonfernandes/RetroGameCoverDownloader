@@ -1,131 +1,249 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Xml;
-using System.Xml.Serialization;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Models;
-using RetroGameCoverDownloader.Services;
+using Serilog;
 
 namespace RetroGameCoverDownloader.Managers;
 
 public static class SettingsManager
 {
-    public static string DefaultSettingsFilePath { get; } = Path.Combine(
-        AppDomain.CurrentDomain.BaseDirectory,
-        "settings.xml");
+    private const string SettingsFileName = "settings.dat";
+    private const string LegacySettingsFileName = "settings.xml";
+
+    private static readonly string AppFolderPath = Path.Combine(
+        AppContext.BaseDirectory, SettingsFileName);
+
+    private static readonly string AppDataPath = Path.Combine(
+        AppInfo.LocalAppDataFolderPath, SettingsFileName);
+
+    private static string? _loadedFromPath;
+
+    private static readonly byte[] Key = DeriveAesKey();
+
+    public static string DefaultSettingsFilePath => _loadedFromPath ?? AppFolderPath;
 
     public static AppSettings LoadSettings()
     {
-        return LoadSettings(DefaultSettingsFilePath);
+        var candidatePaths = new[] { AppFolderPath, AppDataPath };
+        var existing = candidatePaths.Where(File.Exists).ToList();
+
+        if (existing.Count > 0)
+        {
+            var newest = existing.MaxBy(File.GetLastWriteTimeUtc)!;
+            _loadedFromPath = newest;
+            return LoadFromDat(newest);
+        }
+
+        var legacyPath = Path.Combine(AppContext.BaseDirectory, LegacySettingsFileName);
+        if (File.Exists(legacyPath))
+        {
+            var migrated = MigrateFromLegacyXml(legacyPath);
+            return migrated;
+        }
+
+        _loadedFromPath = null;
+        return new AppSettings();
     }
 
     public static AppSettings LoadSettings(string filePath)
     {
         if (!File.Exists(filePath))
-        {
             return new AppSettings();
-        }
 
-        const string context = "[SettingsManager.LoadSettings] ";
+        _loadedFromPath = filePath;
+        return LoadFromDat(filePath);
+    }
 
+    public static void SaveSettings(AppSettings settings)
+    {
+        var path = _loadedFromPath ?? AppFolderPath;
+        SaveSettings(settings, path);
+    }
+
+    public static void SaveSettings(AppSettings settings, string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        var json = JsonSerializer.Serialize(settings);
+        var plainBytes = Encoding.UTF8.GetBytes(json);
+        var encrypted = EncryptBytes(plainBytes);
+
+        File.WriteAllBytes(filePath, encrypted);
+        _loadedFromPath = filePath;
+    }
+
+    private static AppSettings LoadFromDat(string filePath)
+    {
         try
         {
-            var serializer = new XmlSerializer(typeof(AppSettings));
-            var xmlReaderSettings = new XmlReaderSettings
-            {
-                DtdProcessing = DtdProcessing.Prohibit,
-                XmlResolver = null
-            };
-            using var reader = new StreamReader(filePath);
-            using var xmlReader = XmlReader.Create(reader, xmlReaderSettings);
-            var settings = (serializer.Deserialize(xmlReader) as AppSettings) ?? new AppSettings();
+            var encrypted = File.ReadAllBytes(filePath);
+            var plainBytes = DecryptBytes(encrypted);
+            var json = Encoding.UTF8.GetString(plainBytes);
+            return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, $"[SettingsManager] Failed to load {filePath}. Creating new settings.");
+            return new AppSettings();
+        }
+    }
 
-            if (!string.IsNullOrEmpty(settings.ProxyPasswordEncrypted))
-            {
-                try
-                {
-                    settings.ProxyPassword = DecryptString(settings.ProxyPasswordEncrypted);
-                }
-                catch (Exception ex) when (ex is CryptographicException or FormatException)
-                {
-                    settings.ProxyPassword = settings.ProxyPasswordEncrypted;
-                }
-            }
+    private static AppSettings MigrateFromLegacyXml(string legacyPath)
+    {
+        try
+        {
+            var settings = LegacyXmlParser(legacyPath);
 
-            if (!string.IsNullOrEmpty(settings.GitHubTokenEncrypted))
-            {
-                try
-                {
-                    settings.GitHubToken = DecryptString(settings.GitHubTokenEncrypted);
-                }
-                catch (Exception ex) when (ex is CryptographicException or FormatException)
-                {
-                    settings.GitHubToken = settings.GitHubTokenEncrypted;
-                }
-            }
+            // Save to new format at the app folder path
+            var datPath = AppFolderPath;
+            var json = JsonSerializer.Serialize(settings);
+            var plainBytes = Encoding.UTF8.GetBytes(json);
+            var encrypted = EncryptBytes(plainBytes);
+
+            var directory = Path.GetDirectoryName(datPath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            File.WriteAllBytes(datPath, encrypted);
+            _loadedFromPath = datPath;
 
             return settings;
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to deserialize settings.xml. Creating new settings.");
+            Log.Error(ex, "[SettingsManager] Failed to migrate legacy settings.xml. Creating new settings.");
             return new AppSettings();
         }
     }
 
-    public static void SaveSettings(AppSettings settings)
+    private static AppSettings LegacyXmlParser(string filePath)
     {
-        SaveSettings(settings, DefaultSettingsFilePath);
-    }
+        var settings = new AppSettings();
 
-    public static void SaveSettings(AppSettings settings, string filePath)
-    {
-        const string context = "[SettingsManager.SaveSettings] ";
         try
         {
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory))
+            var doc = new XmlDocument();
+            doc.Load(filePath);
+
+            var tokenNode = doc.SelectSingleNode("/AppSettings/GitHubToken");
+            if (tokenNode != null && !string.IsNullOrEmpty(tokenNode.InnerText))
             {
-                Directory.CreateDirectory(directory);
+                try
+                {
+                    settings.GitHubToken = DecryptLegacyString(tokenNode.InnerText);
+                }
+                catch (Exception ex) when (ex is CryptographicException or FormatException)
+                {
+                    settings.GitHubToken = tokenNode.InnerText;
+                }
             }
 
-            var copy = new AppSettings
+            var useProxyNode = doc.SelectSingleNode("/AppSettings/UseProxy");
+            settings.UseProxy = useProxyNode != null && bool.TryParse(useProxyNode.InnerText, out var up) && up;
+
+            var hostNode = doc.SelectSingleNode("/AppSettings/ProxyHost");
+            settings.ProxyHost = hostNode?.InnerText;
+
+            var portNode = doc.SelectSingleNode("/AppSettings/ProxyPort");
+            if (portNode != null && int.TryParse(portNode.InnerText, out var port))
             {
-                GitHubTokenEncrypted = string.IsNullOrEmpty(settings.GitHubToken)
-                    ? null
-                    : EncryptString(settings.GitHubToken),
-                ProxyPasswordEncrypted = string.IsNullOrEmpty(settings.ProxyPassword)
-                    ? null
-                    : EncryptString(settings.ProxyPassword),
-                UseProxy = settings.UseProxy,
-                ProxyHost = settings.ProxyHost,
-                ProxyPort = settings.ProxyPort,
-                ProxyUsername = settings.ProxyUsername,
-                FileExtensions = [..settings.FileExtensions]
-            };
+                settings.ProxyPort = port;
+            }
 
-            var serializer = new XmlSerializer(typeof(AppSettings));
-            using var writer = new StreamWriter(filePath);
-            serializer.Serialize(writer, copy);
+            var userNode = doc.SelectSingleNode("/AppSettings/ProxyUsername");
+            settings.ProxyUsername = userNode?.InnerText;
+
+            var passNode = doc.SelectSingleNode("/AppSettings/ProxyPassword");
+            if (passNode != null && !string.IsNullOrEmpty(passNode.InnerText))
+            {
+                try
+                {
+                    settings.ProxyPassword = DecryptLegacyString(passNode.InnerText);
+                }
+                catch (Exception ex) when (ex is CryptographicException or FormatException)
+                {
+                    settings.ProxyPassword = passNode.InnerText;
+                }
+            }
+
+            var extNodes = doc.SelectNodes("/AppSettings/FileExtensions/Extension");
+            if (extNodes != null)
+            {
+                settings.FileExtensions.Clear();
+                foreach (XmlNode node in extNodes)
+                {
+                    if (!string.IsNullOrWhiteSpace(node.InnerText))
+                        settings.FileExtensions.Add(node.InnerText.Trim());
+                }
+
+                if (settings.FileExtensions.Count == 0)
+                {
+                    settings.FileExtensions = [..AppSettings.DefaultExtensions];
+                }
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            _ = BugReportService.LogErrorAsync(ex, $"{context}Failed to save settings to {filePath}.");
-            throw;
+            return new AppSettings();
         }
+
+        return settings;
     }
 
-    private static string EncryptString(string plainText)
-    {
-        var bytes = Encoding.UTF8.GetBytes(plainText);
-        var protectedBytes = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
-        return Convert.ToBase64String(protectedBytes);
-    }
-
-    private static string DecryptString(string encryptedText)
+    private static string DecryptLegacyString(string encryptedText)
     {
         var bytes = Convert.FromBase64String(encryptedText);
-        var unprotectedBytes = ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
-        return Encoding.UTF8.GetString(unprotectedBytes);
+        var unprotected = ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
+        return Encoding.UTF8.GetString(unprotected);
+    }
+
+    private static byte[] DeriveAesKey()
+    {
+        return Rfc2898DeriveBytes.Pbkdf2(
+            "RetroGameCoverDownloader.Settings.Encryption.v2"u8.ToArray(),
+            "RGCD_SALT_2026"u8.ToArray(),
+            100_000,
+            HashAlgorithmName.SHA256,
+            32);
+    }
+
+    private static byte[] EncryptBytes(byte[] plainBytes)
+    {
+        using var aes = Aes.Create();
+        aes.Key = Key;
+        aes.GenerateIV();
+
+        using var ms = new MemoryStream();
+        ms.Write(aes.IV, 0, aes.IV.Length);
+
+        using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
+        {
+            cs.Write(plainBytes, 0, plainBytes.Length);
+            cs.FlushFinalBlock();
+        }
+
+        return ms.ToArray();
+    }
+
+    private static byte[] DecryptBytes(byte[] encryptedBytes)
+    {
+        using var aes = Aes.Create();
+        aes.Key = Key;
+
+        var iv = new byte[aes.BlockSize / 8];
+        Array.Copy(encryptedBytes, 0, iv, 0, iv.Length);
+        aes.IV = iv;
+
+        using var ms = new MemoryStream(encryptedBytes, iv.Length, encryptedBytes.Length - iv.Length);
+        using var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
+        using var result = new MemoryStream();
+        cs.CopyTo(result);
+        return result.ToArray();
     }
 }

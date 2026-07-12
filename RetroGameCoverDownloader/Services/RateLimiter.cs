@@ -1,3 +1,5 @@
+using Serilog;
+
 namespace RetroGameCoverDownloader.Services;
 
 public class RateLimiter
@@ -55,7 +57,7 @@ public class RateLimiter
             }
             catch (Exception ex)
             {
-                _ = BugReportService.LogErrorAsync(ex, $"{context}Exception in OnRateLimitHit event handler.");
+                Log.Error(ex, $"{context}Exception in OnRateLimitHit event handler.");
             }
 
             await Task.Delay(timeToWait, cancellationToken);

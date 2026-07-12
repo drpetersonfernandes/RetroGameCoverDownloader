@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using RetroGameCoverDownloader.Models;
+using Serilog;
 
 namespace RetroGameCoverDownloader.Helpers;
 
@@ -10,7 +11,6 @@ public static class RetryHelper
     public static async Task<T> RetryOnTransientErrorAsync<T>(
         Func<Task<T>> action,
         RetrySettings? settings = null,
-        Action<string>? logAction = null,
         CancellationToken cancellationToken = default)
     {
         var retrySettings = settings ?? RetrySettings.Default;
@@ -24,7 +24,7 @@ public static class RetryHelper
             catch (Exception ex) when (attempt < retrySettings.MaxRetries && IsTransientError(ex))
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * retrySettings.BackoffMultiplierSeconds);
-                logAction?.Invoke($"Retry {attempt}/{retrySettings.MaxRetries} after {delay.TotalSeconds:F0}s: {ex.GetType().Name}");
+                Log.Information("Retry {Attempt}/{MaxRetries} after {Delay:F0}s: {ExceptionType}", attempt, retrySettings.MaxRetries, delay.TotalSeconds, ex.GetType().Name);
                 await Task.Delay(delay, cancellationToken);
             }
         }

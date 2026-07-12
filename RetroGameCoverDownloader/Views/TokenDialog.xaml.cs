@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Navigation;
 using RetroGameCoverDownloader.Services;
+using Serilog;
 using MessageBox = System.Windows.MessageBox;
 
 namespace RetroGameCoverDownloader.Views;
@@ -41,7 +41,7 @@ public partial class TokenDialog
         }
         catch (Exception ex)
         {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to save token.");
+            Log.Error(ex, "Failed to save token.");
             MessageBox.Show("An error occurred while saving the token. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -54,15 +54,6 @@ public partial class TokenDialog
     private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
         e.Handled = true;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            _ = BugReportService.LogErrorAsync(ex, "Failed to open hyperlink.");
-            MessageBox.Show($"Could not open link: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        UpdateCheckerService.OpenUrlInBrowser(e.Uri.AbsoluteUri);
     }
 }
