@@ -17,6 +17,7 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 ⬇️ **Batch Downloading** - Downloads all missing covers in one click with progress tracking  
 ⚡ **Rate Limit Management** - Intelligent handling of GitHub API limits with visual countdown timer  
 🔐 **Token Integration** - Optional GitHub token support for 4,900 downloads/hour (vs 55 without)  
+🔑 **Auto Token Prompt** - Automatically prompts for a new token on 401 Unauthorized errors  
 🔄 **Update Checker** - Automatically notifies you of new versions  
 🐛 **Error Reporting** - Automatic bug reports to help improve the application  
 ⏹️ **Cancellation Support** - Cancel operations anytime  
@@ -27,7 +28,9 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 🔒 **Settings Encryption** - Tokens and passwords are encrypted using Windows DPAPI  
 🔁 **Retry with Exponential Backoff** - Automatic retry on transient failures with intelligent backoff  
 ⚡ **Circuit Breaker** - Protects against hammering distressed servers during outages  
-💾 **Systems Cache** - Caches the available systems list for faster startup and offline resilience
+💾 **Systems Cache** - Caches the available systems list for faster startup and offline resilience  
+🌙 **Modern UI** - Fluent Design dark theme powered by WPF-UI  
+📸 **Screenshot Hotkey** - Press F8 anytime to capture the app window
 
 ## 🖼️ Screenshots
 
@@ -83,16 +86,18 @@ RetroGameCoverDownloader.exe "C:\ROMs" "C:\Covers"
 ### Architecture
 - **MVVM Pattern**: Main window uses ViewModels; dialogs use code-behind for simplicity
 - **Async/Await**: Fully asynchronous operations for UI responsiveness
+- **WPF-UI**: Modern Fluent Design dark theme with dynamic resources
+- **Serilog**: Structured logging with buffered UI sink, file sink, and debug output
 - **Rate Limiting**: Custom `RateLimiter` service with event notifications
-- **Error Handling**: Comprehensive logging and bug reporting
+- **Error Handling**: Comprehensive logging and bug reporting via BugReportSink
 - **Circuit Breaker**: Tracks consecutive 503 errors and triggers cooldown to avoid hammering distressed servers
 - **Retry Logic**: Exponential backoff with configurable retry attempts
 
 ### Key Components
 - `MainViewModel`: Core business logic and state management
 - `GitHubService`: Handles all GitHub API interactions
-- `BugReportService`: Automatic error reporting to developer
-- `SettingsManager`: XML-based settings persistence with DPAPI encryption for sensitive data
+- `BugReportService` / `BugReportSink`: Automatic error reporting via structured Serilog sink
+- `SettingsManager`: JSON-based settings persistence with DPAPI encryption for sensitive data
 - `RateLimiter`: Intelligent API request throttling
 - `UpdateCheckerService`: Checks for new application versions
 
