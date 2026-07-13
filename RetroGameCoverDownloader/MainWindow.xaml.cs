@@ -67,7 +67,7 @@ public partial class MainWindow
 
         if (success && filePath != null)
         {
-            Log.Information($"[MainWindow] Screenshot saved: {filePath}");
+            Log.Information("[MainWindow] Screenshot saved: {FilePath}", filePath);
         }
         else
         {
@@ -290,7 +290,7 @@ public partial class MainWindow
                     var viewModel = DataContext as ViewModels.MainViewModel;
                     viewModel?.UpdateFileExtensions(dialog.FileExtensions);
 
-                    Log.Information($"[MainWindow.FileExtensionsMenuItem_Click] File extensions updated. {dialog.FileExtensions.Count} extension(s) configured.");
+                    Log.Information("[MainWindow.FileExtensionsMenuItem_Click] File extensions updated. {ExtensionCount} extension(s) configured.", dialog.FileExtensions.Count);
                     MessageBox.Show($"File extensions saved. {dialog.FileExtensions.Count} extension(s) configured.",
                         "File Extensions", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -318,7 +318,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Log.Information($"Error opening About window: {ex.Message}");
+            Log.Information("Error opening About window: {Reason}", ex.Message);
             Log.Error(ex, "Error opening About window");
         }
     }
@@ -335,7 +335,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Log.Information($"Error checking for updates: {ex.Message}");
+            Log.Information("Error checking for updates: {Reason}", ex.Message);
             Log.Error(ex, "Error checking for updates from menu.");
         }
     }

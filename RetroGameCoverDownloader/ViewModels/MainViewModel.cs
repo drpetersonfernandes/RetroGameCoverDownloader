@@ -78,7 +78,9 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            return SettingsManager.LoadSettings(SettingsManager.DefaultSettingsFilePath);
+            // Use the parameterless overload so startup benefits from multi-location
+            // discovery (app folder + per-user AppData) and legacy settings.xml migration.
+            return SettingsManager.LoadSettings();
         }
         catch (Exception ex)
         {
@@ -286,7 +288,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             newService.UnauthorizedAccess += OnUnauthorizedAccess;
 
             var proxyStatus = AppSettings.FormatProxyStatus(useProxy, proxyHost, proxyPort);
-            Log.Information($"[MainViewModel.UpdateProxySettings] Proxy settings updated. Proxy: {proxyStatus}");
+            Log.Information("[MainViewModel.UpdateProxySettings] Proxy settings updated. Proxy: {ProxyStatus}", proxyStatus);
         }
         catch (Exception ex)
         {
@@ -299,7 +301,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         FileExtensions = extensions.Count > 0
             ? new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Log.Information($"[MainViewModel.UpdateFileExtensions] File extension filter updated. {(extensions.Count > 0 ? $"Filtering by {extensions.Count} extension(s)." : "No filter applied.")}");
+        var filterStatus = extensions.Count > 0 ? $"Filtering by {extensions.Count} extension(s)." : "No filter applied.";
+        Log.Information("[MainViewModel.UpdateFileExtensions] File extension filter updated. {FilterStatus}", filterStatus);
     }
 
     // 4. Handle the event from RateLimiter
@@ -350,6 +353,13 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                             UpdateToken(dialog.Token);
                             Log.Information("[OnUnauthorizedAccess] New GitHub token saved and applied.");
+
+                            // Recover automatically so the user doesn't have to work out that
+                            // the previous request silently failed: reload the systems list with
+                            // the new token. This is safe against the stale in-flight request
+                            // because LoadSystemsAsync no longer clears the list on an empty fetch.
+                            StatusMessage = "GitHub token updated. Reloading systems...";
+                            _ = LoadSystemsAsync();
                         }
                         else
                         {
@@ -382,7 +392,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 UpdateVersionText = $"Version {updateInfo.LatestVersion} is available";
                 UpdateReleaseUrl = updateInfo.ReleaseUrl;
                 UpdateAvailable = true;
-                Log.Information($"Update available: {updateInfo.LatestVersion} (current: {AppInfo.Version})");
+                Log.Information("Update available: {LatestVersion} (current: {CurrentVersion})", updateInfo.LatestVersion, AppInfo.Version);
             });
         }
         catch (Exception ex)
@@ -472,7 +482,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log.Error(ex, $"[MainViewModel.OnUILogMessage] Failed to update log: {formatted}");
+                Log.Error(ex, "[MainViewModel.OnUILogMessage] Failed to update log: {Formatted}", formatted);
             }
 
             if (_countdownTimer is { IsEnabled: false })
@@ -509,8 +519,16 @@ public class MainViewModel : ViewModelBase, IDisposable
                 {
                     try
                     {
-                        Systems.Clear();
-                        foreach (var sys in systems.OrderBy(static s => s.SystemName)) Systems.Add(sys);
+                        // Don't wipe an already-populated list when the fetch returns
+                        // nothing (e.g. a transient rate-limit or auth failure). This also
+                        // makes an auth-triggered reload safe against a stale in-flight
+                        // fetch: whichever call returns no systems simply leaves the list
+                        // untouched, so the successful call always wins regardless of order.
+                        if (systems.Count > 0)
+                        {
+                            Systems.Clear();
+                            foreach (var sys in systems.OrderBy(static s => s.SystemName)) Systems.Add(sys);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -518,7 +536,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     }
                 });
 
-                Log.Information($"Loaded {systems.Count} systems.");
+                Log.Information("Loaded {SystemCount} systems.", systems.Count);
             }
             catch (Exception ex)
             {
@@ -581,25 +599,25 @@ public class MainViewModel : ViewModelBase, IDisposable
                     if (!DirectoryExists(RomFolderPath)) missingFolders.Add($"ROM folder: {RomFolderPath}");
                     if (!DirectoryExists(CoverFolderPath)) missingFolders.Add($"Cover folder: {CoverFolderPath}");
                     var errorMsg = $"The following folders do not exist:\n{string.Join("\n", missingFolders)}";
-                    Log.Information($"[MainViewModel.PrepareDownloadAsync] {errorMsg}");
+                    Log.Information("[MainViewModel.PrepareDownloadAsync] {ErrorMessage}", errorMsg);
                     throw new DirectoryNotFoundException(errorMsg);
                 }
 
                 // 2. Scan ROMs
-                Log.Information($"Scanning ROM folder: {RomFolderPath}");
+                Log.Information("Scanning ROM folder: {RomFolder}", RomFolderPath);
                 var romFiles = GetFiles(RomFolderPath);
                 var romNames = romFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Log.Information($"Found {romNames.Count} ROMs.");
+                Log.Information("Found {RomCount} ROMs.", romNames.Count);
 
                 // 3. Scan Covers
-                Log.Information($"Scanning Cover folder: {CoverFolderPath}");
+                Log.Information("Scanning Cover folder: {CoverFolder}", CoverFolderPath);
                 var coverFiles = GetFiles(CoverFolderPath);
                 var coverNames = coverFiles.Select(static f => Path.GetFileNameWithoutExtension(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Log.Information($"Found {coverNames.Count} existing covers.");
+                Log.Information("Found {CoverCount} existing covers.", coverNames.Count);
 
                 // 4. Identify Missing
                 var missingCovers = romNames.Where(r => !coverNames.Contains(r)).ToList();
-                Log.Information($"Missing {missingCovers.Count} covers based on local files.");
+                Log.Information("Missing {MissingCount} covers based on local files.", missingCovers.Count);
 
                 if (missingCovers.Count == 0)
                 {
@@ -608,16 +626,16 @@ public class MainViewModel : ViewModelBase, IDisposable
                 }
 
                 // 5. Fetch GitHub List
-                Log.Information($"Fetching file list from GitHub for {selectedSystem.SystemName}...");
+                Log.Information("Fetching file list from GitHub for {SystemName}...", selectedSystem.SystemName);
                 var (branch, githubFiles) = await _gitHubService.GetSystemFilesAsync(selectedSystem, token);
 
                 if (githubFiles.Count == 0)
                 {
-                    Log.Information($"[MainViewModel.PrepareDownloadAsync] No files found for {selectedSystem.SystemName}.");
+                    Log.Information("[MainViewModel.PrepareDownloadAsync] No files found for {SystemName}.", selectedSystem.SystemName);
                     return;
                 }
 
-                Log.Information($"Found {githubFiles.Count} files in repository (Branch: {branch}).");
+                Log.Information("Found {FileCount} files in repository (Branch: {Branch}).", githubFiles.Count, branch);
 
                 // Filter out .gitkeep and other non-cover dot-files
                 githubFiles = githubFiles
@@ -630,7 +648,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     })
                     .ToList();
 
-                Log.Information($"After filtering non-cover files: {githubFiles.Count} files.");
+                Log.Information("After filtering non-cover files: {FileCount} files.", githubFiles.Count);
 
                 // 6. Match Missing vs GitHub
                 // GitHub paths are like "Named_Boxarts/Game Name.png"
@@ -658,7 +676,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                     }
                 }
 
-                Log.Information($"Matched {ItemsToDownload.Count} covers available for download.");
+                Log.Information("Matched {MatchedCount} covers available for download.", ItemsToDownload.Count);
             }, token);
         }
         catch (OperationCanceledException)
@@ -730,14 +748,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             if (string.IsNullOrWhiteSpace(item.DownloadUrl))
             {
-                Log.Information($"[MainViewModel.DownloadCoversAsync] Invalid download URL for {item.GameName}. Skipping.");
+                Log.Information("[MainViewModel.DownloadCoversAsync] Invalid download URL for {GameName}. Skipping.", item.GameName);
                 continue;
             }
 
             var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
             if (FileExists(savePath))
             {
-                Log.Information($"[MainViewModel.DownloadCoversAsync] Cover already exists for {item.GameName}. Skipping.");
+                Log.Information("[MainViewModel.DownloadCoversAsync] Cover already exists for {GameName}. Skipping.", item.GameName);
                 continue;
             }
 
@@ -745,7 +763,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         ProgressMax = itemsToProcess.Count;
-        Log.Information($"--- {itemsToProcess.Count} items to download ---");
+        Log.Information("--- {ItemCount} items to download ---", itemsToProcess.Count);
 
         try
         {
@@ -759,7 +777,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 var savePath = Path.Combine(CoverFolderPath, item.TargetFilename);
 
-                Log.Information($"Downloading: {item.GameName}...");
+                Log.Information("Downloading: {GameName}...", item.GameName);
 
                 // Feature 2: Pass log callback to show "Retrying..." messages in UI automatically
                 var data = await _gitHubService.DownloadFileAsync(item.DownloadUrl, token);
@@ -786,7 +804,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 }
                 else
                 {
-                    Log.Information($"Failed to download {item.GameName}");
+                    Log.Information("Failed to download {GameName}", item.GameName);
                 }
 
                 ProgressValue++;
@@ -808,7 +826,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             try
             {
-                Log.Information($"Download finished. Successfully saved {successCount} covers.");
+                Log.Information("Download finished. Successfully saved {SuccessCount} covers.", successCount);
                 StatusMessage = $"Download complete. Saved {successCount} covers.";
                 _countdownTimer.Stop();
                 IsBusy = false;

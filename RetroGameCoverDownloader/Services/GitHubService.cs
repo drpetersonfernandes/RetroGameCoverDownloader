@@ -153,8 +153,7 @@ public class GitHubService : IGitHubService
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
             {
                 lastException = ex;
-                var errorMsg = $"{context}GitHub API rate limit exceeded on branch '{branch}'. {ex.Message}";
-                Log.Information(errorMsg);
+                Log.Information("{Context}GitHub API rate limit exceeded on branch '{Branch}'. {Reason}", context, branch, ex.Message);
 
                 var cached = await LoadSystemsFromCacheAsync();
                 if (cached != null)
@@ -168,7 +167,7 @@ public class GitHubService : IGitHubService
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
             {
                 lastException = ex;
-                Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                Log.Information("{Context}GitHub API returned 401 (Unauthorized) on branch '{Branch}'. Token may be missing, invalid, or expired.", context, branch);
                 RaiseUnauthorized();
 
                 var cached = await LoadSystemsFromCacheAsync();
@@ -181,12 +180,12 @@ public class GitHubService : IGitHubService
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
                 lastException = ex;
-                Log.Information($"{context}Branch '{branch}' not found (404), trying next branch...");
+                Log.Information("{Context}Branch '{Branch}' not found (404), trying next branch...", context, branch);
             }
             catch (Exception ex)
             {
                 lastException = ex;
-                Log.Information($"{context}Error fetching systems on branch '{branch}': {ex.Message}");
+                Log.Information("{Context}Error fetching systems on branch '{Branch}': {Reason}", context, branch, ex.Message);
             }
         }
 
@@ -199,7 +198,7 @@ public class GitHubService : IGitHubService
 
         if (lastException != null)
         {
-            Log.Error(lastException, $"{context}Failed to fetch available systems from GitHub.");
+            Log.Error(lastException, "{Context}Failed to fetch available systems from GitHub.", context);
         }
 
         return new List<SystemConfig>();
@@ -209,7 +208,7 @@ public class GitHubService : IGitHubService
     {
         var systems = new List<SystemConfig>();
 
-        Log.Information($"Fetching .gitmodules from branch '{branch}'...");
+        Log.Information("Fetching .gitmodules from branch '{Branch}'...", branch);
         var gitmodulesContent = await FetchGitmodulesAsync(branch, cancellationToken);
         var repoNameMap = ParseGitmodules(gitmodulesContent);
 
@@ -251,12 +250,12 @@ public class GitHubService : IGitHubService
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
         {
             firstException = ex;
-            Log.Information($"{context}raw.githubusercontent.com rate limited ({ex.Message}), trying GitHub Contents API...");
+            Log.Information("{Context}raw.githubusercontent.com rate limited ({Reason}), trying GitHub Contents API...", context, ex.Message);
         }
         catch (Exception ex)
         {
             firstException = ex;
-            Log.Information($"{context}raw.githubusercontent.com failed ({ex.Message}), trying GitHub Contents API...");
+            Log.Information("{Context}raw.githubusercontent.com failed ({Reason}), trying GitHub Contents API...", context, ex.Message);
         }
 
         try
@@ -285,7 +284,7 @@ public class GitHubService : IGitHubService
             var message = firstException is HttpRequestException { StatusCode: HttpStatusCode.Forbidden }
                 ? $"{context}Both raw.githubusercontent.com and GitHub Contents API returned 403 (rate limit exceeded)."
                 : $"{context}GitHub Contents API returned 403 (rate limit exceeded) after raw.githubusercontent.com fallback.";
-            Log.Information(message);
+            Log.Information("{Reason}", message);
             throw new InvalidOperationException(message, ex);
         }
     }
@@ -308,14 +307,14 @@ public class GitHubService : IGitHubService
                 switch (response.StatusCode)
                 {
                     case HttpStatusCode.InternalServerError:
-                        Log.Information($"{context}Repository too large for recursive fetch. Attempting non-recursive fallback...");
+                        Log.Information("{Context}Repository too large for recursive fetch. Attempting non-recursive fallback...", context);
                         return await GetSystemFilesLargeRepoFallbackAsync(system, branch, cancellationToken);
                     case HttpStatusCode.Unauthorized:
-                        Log.Information($"{context}GitHub API returned 401 (Unauthorized) on branch '{branch}'. Token may be missing, invalid, or expired.");
+                        Log.Information("{Context}GitHub API returned 401 (Unauthorized) on branch '{Branch}'. Token may be missing, invalid, or expired.", context, branch);
                         RaiseUnauthorized();
                         continue;
                     case HttpStatusCode.Forbidden:
-                        Log.Information($"{context}Rate limit exceeded on branch '{branch}'. {response.ReasonPhrase}");
+                        Log.Information("{Context}Rate limit exceeded on branch '{Branch}'. {Reason}", context, branch, response.ReasonPhrase);
                         continue;
                     case HttpStatusCode.NotFound:
                         continue;
@@ -336,8 +335,7 @@ public class GitHubService : IGitHubService
             }
             catch (Exception ex)
             {
-                var errorMsg = $"{context}Error fetching files: {ex.Message}";
-                Log.Error(ex, errorMsg);
+                Log.Error(ex, "{Context}Error fetching files on branch '{Branch}'.", context, branch);
             }
         }
 
@@ -380,7 +378,7 @@ public class GitHubService : IGitHubService
                         .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type })
                         .ToList();
 
-                    Log.Information($"{context}Successfully retrieved {files.Count} files via fallback method.");
+                    Log.Information("{Context}Successfully retrieved {FileCount} files via fallback method.", context, files.Count);
                     return (branch, files);
                 }
             }
@@ -408,7 +406,7 @@ public class GitHubService : IGitHubService
                 await _rateLimiter.WaitForSlotAsync(cancellationToken);
 
                 // Feature 2: User Feedback - Show current attempt
-                Log.Information($"Downloading attempt {attempt}...");
+                Log.Information("Downloading attempt {Attempt}...", attempt);
 
                 var data = await _httpClient.GetByteArrayAsync(url, cancellationToken);
 
@@ -432,7 +430,7 @@ public class GitHubService : IGitHubService
                     if (Interlocked.CompareExchange(ref _consecutive503Count, 0, currentCount) == currentCount)
                     {
                         Interlocked.Exchange(ref _circuitBreakerOpenUntilTicks, DateTime.UtcNow.AddSeconds(_retrySettings.CircuitBreakerCooldownSeconds).Ticks);
-                        Log.Information($"{context}⚠️ Circuit breaker triggered: {_retrySettings.CircuitBreakerThreshold} consecutive 503s detected. Cooling down for {_retrySettings.CircuitBreakerCooldownSeconds}s...");
+                        Log.Information("{Context}⚠️ Circuit breaker triggered: {Threshold} consecutive 503s detected. Cooling down for {Cooldown}s...", context, _retrySettings.CircuitBreakerThreshold, _retrySettings.CircuitBreakerCooldownSeconds);
                     }
 
                     await Task.Delay(TimeSpan.FromSeconds(_retrySettings.CircuitBreakerCooldownSeconds), cancellationToken);
@@ -443,7 +441,7 @@ public class GitHubService : IGitHubService
                     var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                     // Feature 2: User Feedback - Show retry status with 503 count
-                    Log.Information($"{context}Server busy (503 attempt #{currentCount}). Retrying in {delay.TotalSeconds:F0}s...");
+                    Log.Information("{Context}Server busy (503 attempt #{Count}). Retrying in {Delay:F0}s...", context, currentCount, delay.TotalSeconds);
                     await Task.Delay(delay, cancellationToken);
                 }
             }
@@ -452,7 +450,7 @@ public class GitHubService : IGitHubService
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * _retrySettings.BackoffMultiplierSeconds);
 
                 // Feature 2: User Feedback - Show timeout retry
-                Log.Information($"{context}Download timeout. Retrying in {delay.TotalSeconds:F0}s...");
+                Log.Information("{Context}Download timeout. Retrying in {Delay:F0}s...", context, delay.TotalSeconds);
                 await Task.Delay(delay, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -462,7 +460,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log final failure after all retries exhausted or non-transient error
-                Log.Error(ex, $"{context}Failed on attempt {attempt} of {_retrySettings.MaxRetries}: {url}");
+                Log.Error(ex, "{Context}Failed on attempt {Attempt} of {MaxRetries}: {Url}", context, attempt, _retrySettings.MaxRetries, url);
                 return null;
             }
         }
@@ -479,7 +477,7 @@ public class GitHubService : IGitHubService
         if (now < openUntil)
         {
             var waitTime = openUntil - now;
-            Log.Information($"{context}Waiting {waitTime.TotalSeconds:F0}s to avoid hammering distressed server...");
+            Log.Information("{Context}Waiting {Delay:F0}s to avoid hammering distressed server...", context, waitTime.TotalSeconds);
             return Task.Delay(waitTime, cancellationToken);
         }
 
@@ -554,7 +552,7 @@ public class GitHubService : IGitHubService
             catch (Exception ex)
             {
                 // Log parsing errors but continue processing other lines
-                Log.Error(ex, $"{context}Exception parsing gitmodules line: {trimmed}");
+                Log.Error(ex, "{Context}Exception parsing gitmodules line: {Line}", context, trimmed);
                 currentPath = null; // Reset to avoid corrupting next entry
             }
         }
