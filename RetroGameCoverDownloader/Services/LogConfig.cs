@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.IO;
 using RetroGameCoverDownloader.Helpers;
 using Serilog;
+using Serilog.Events;
 
 namespace RetroGameCoverDownloader.Services;
 
@@ -16,10 +18,13 @@ public static class LogConfig
                 Path.Combine(logDir, "log-.txt"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                formatProvider: CultureInfo.InvariantCulture)
             .WriteTo.Debug(
-                outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                formatProvider: CultureInfo.InvariantCulture)
             .WriteTo.Sink(new UiLogSink())
+            .WriteTo.Sink(new BugReportSink(), LogEventLevel.Warning)
             .CreateLogger();
     }
 }
