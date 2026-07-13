@@ -57,7 +57,7 @@ public class RateLimiter
             }
             catch (Exception ex)
             {
-                Log.Error(ex, $"{context}Exception in OnRateLimitHit event handler.");
+                Log.Error(ex, "{Context}Exception in OnRateLimitHit event handler.", context);
             }
 
             await Task.Delay(timeToWait, cancellationToken);

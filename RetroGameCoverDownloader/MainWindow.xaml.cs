@@ -371,7 +371,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Log.Error(ex, $"Error opening update URL: {e.Uri.AbsoluteUri}");
+            Log.Error(ex, "Error opening update URL: {UpdateUrl}", e.Uri.AbsoluteUri);
         }
 
         e.Handled = true;

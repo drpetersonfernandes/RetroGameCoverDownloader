@@ -482,7 +482,10 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "[MainViewModel.OnUILogMessage] Failed to update log: {Formatted}", formatted);
+                // Report directly via BugReportService instead of Log.Error: this handler
+                // is invoked by UiLogSink, so logging here would re-enter the sink and,
+                // on a persistent failure, recurse until the stack overflows.
+                _ = BugReportService.LogErrorAsync(ex, $"[MainViewModel.OnUILogMessage] Failed to update log: {formatted}");
             }
 
             if (_countdownTimer is { IsEnabled: false })

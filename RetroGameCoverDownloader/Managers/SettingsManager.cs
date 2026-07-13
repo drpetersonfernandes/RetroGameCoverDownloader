@@ -78,7 +78,7 @@ public static class SettingsManager
         }
         catch (Exception ex)
         {
-            Log.Error(ex, $"[SettingsManager] Failed to save settings to {filePath}.");
+            Log.Error(ex, "[SettingsManager] Failed to save settings to {FilePath}.", filePath);
             throw;
         }
     }
@@ -99,7 +99,7 @@ public static class SettingsManager
         }
         catch (Exception ex)
         {
-            Log.Error(ex, $"[SettingsManager] Failed to load {filePath}. Creating new settings.");
+            Log.Error(ex, "[SettingsManager] Failed to load {FilePath}. Creating new settings.", filePath);
             return new AppSettings();
         }
     }
