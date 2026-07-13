@@ -16,4 +16,8 @@ public static class AppInfo
     public static string LocalAppDataFolderPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         AppName);
+
+    public static string LogsFolderPath { get; } = Path.Combine(LocalAppDataFolderPath, "logs");
+
+    public static string ScreenshotsFolderPath { get; } = Path.Combine(LocalAppDataFolderPath, "Screenshots");
 }

@@ -1,9 +1,12 @@
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Navigation;
+using RetroGameCoverDownloader.Helpers;
 using RetroGameCoverDownloader.Managers;
 using RetroGameCoverDownloader.Services;
 using RetroGameCoverDownloader.Views;
@@ -140,6 +143,27 @@ public partial class MainWindow
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void OpenAppDataPathMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = AppInfo.LocalAppDataFolderPath;
+            Directory.CreateDirectory(path);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open AppData folder.");
+            MessageBox.Show("Could not open the application data folder.", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

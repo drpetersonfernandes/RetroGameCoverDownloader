@@ -42,7 +42,7 @@
             <!-- How to get one -->
             <TextBlock Text="How to get one (free):" Style="{StaticResource SectionHeadingStyle}"
                        ToolTip="Step-by-step guide to creating a token"/>
-            <TextBlock Margin="0,0,0,10" FontSize="12"
+            <TextBlock Style="{StaticResource InstructionTextStyle}"
                        ToolTip="Follow these steps to create your GitHub token">
                 <Hyperlink NavigateUri="https://github.com/settings/tokens/new" RequestNavigate="Hyperlink_RequestNavigate"
                            ToolTip="Opens the GitHub token creation page in your browser">
@@ -57,15 +57,12 @@
             </TextBlock>
             
             <!-- Existing Token Indicator -->
-            <Border x:Name="ExistingTokenPanel" Visibility="Collapsed" 
-                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                    BorderBrush="{DynamicResource ControlElevationBorderBrush}" BorderThickness="1" 
-                    CornerRadius="4" Padding="10" Margin="0,0,0,10"
+            <Border x:Name="ExistingTokenPanel" Visibility="Collapsed"
+                    Style="{StaticResource InfoPanelStyle}"
                     ToolTip="A token is already saved">
                 <StackPanel>
                     <TextBlock Text="Current token:" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
-                    <TextBlock Text="**************************" FontFamily="Consolas" FontSize="14" 
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock Text="**************************" Style="{StaticResource MaskedTextStyle}"/>
                     <TextBlock Text="Enter a new token below to replace it, or leave empty to keep the current one." 
                                Style="{StaticResource NoteTextStyle}" Margin="0,4,0,0"/>
                 </StackPanel>

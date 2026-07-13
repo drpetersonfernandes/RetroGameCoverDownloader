@@ -141,7 +141,7 @@ public class SettingsManagerTests
     }
 
     [Fact]
-    public void SaveSettingsProducesDifferentCiphertextEachTimeDueToRandomIv()
+    public void SaveSettingsProducesDifferentCiphertextEachTime()
     {
         var pathA = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.dat");
         var pathB = Path.Combine(Path.GetTempPath(), $"rgcd_test_settings_{Guid.NewGuid()}.dat");

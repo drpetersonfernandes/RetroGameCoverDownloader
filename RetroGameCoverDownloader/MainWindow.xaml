@@ -48,6 +48,13 @@
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator ToolTip="Separator" />
+                <MenuItem Header="Open App_Data Path" Click="OpenAppDataPathMenuItem_Click"
+                          ToolTip="Open the application data folder (settings, logs, and screenshots)">
+                    <MenuItem.Icon>
+                        <StaticResource ResourceKey="FolderIcon" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator ToolTip="Separator" />
                 <MenuItem Header="_Exit" Click="ExitMenuItem_Click"
                           ToolTip="Close the application">
                     <MenuItem.Icon>

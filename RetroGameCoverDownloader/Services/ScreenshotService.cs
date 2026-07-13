@@ -1,13 +1,13 @@
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using RetroGameCoverDownloader.Helpers;
 
 namespace RetroGameCoverDownloader.Services;
 
 public static class ScreenshotService
 {
-    private static readonly string ScreenshotsFolder = Path.Combine(
-        AppDomain.CurrentDomain.BaseDirectory, "Screenshots");
+    private static readonly string ScreenshotsFolder = AppInfo.ScreenshotsFolderPath;
 
     public static (bool Success, string? FilePath) CaptureForegroundWindow()
     {

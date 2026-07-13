@@ -1,4 +1,5 @@
 using System.IO;
+using RetroGameCoverDownloader.Helpers;
 using Serilog;
 
 namespace RetroGameCoverDownloader.Services;
@@ -7,7 +8,7 @@ public static class LogConfig
 {
     public static void Initialize()
     {
-        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        var logDir = AppInfo.LogsFolderPath;
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()

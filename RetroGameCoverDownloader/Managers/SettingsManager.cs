@@ -22,7 +22,10 @@ public static class SettingsManager
 
     private static string? _loadedFromPath;
 
-    private static readonly byte[] Key = DeriveAesKey();
+    // Optional entropy mixed into DPAPI. This is not a secret key (DPAPI derives the
+    // real key from the current Windows user's credentials); it just ties the blob to
+    // this application so it can't be trivially decrypted by unrelated CurrentUser code.
+    private static readonly byte[] Entropy = "RetroGameCoverDownloader.Settings.v2"u8.ToArray();
 
     // When nothing has been loaded yet, default to the (writable) per-user AppData
     // location. This must match the fallback used by SaveSettings() so that
@@ -217,47 +220,16 @@ public static class SettingsManager
         return Encoding.UTF8.GetString(unprotected);
     }
 
-    private static byte[] DeriveAesKey()
-    {
-        return Rfc2898DeriveBytes.Pbkdf2(
-            "RetroGameCoverDownloader.Settings.Encryption.v2"u8.ToArray(),
-            "RGCD_SALT_2026"u8.ToArray(),
-            100_000,
-            HashAlgorithmName.SHA256,
-            32);
-    }
-
+    // Protect the settings blob with Windows DPAPI (CurrentUser scope). The encryption
+    // key is derived from the logged-in user's credentials by the OS and never leaves
+    // the machine, so the file cannot be decrypted by another user or on another PC.
     private static byte[] EncryptBytes(byte[] plainBytes)
     {
-        using var aes = Aes.Create();
-        aes.Key = Key;
-        aes.GenerateIV();
-
-        using var ms = new MemoryStream();
-        ms.Write(aes.IV, 0, aes.IV.Length);
-
-        using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
-        {
-            cs.Write(plainBytes, 0, plainBytes.Length);
-            cs.FlushFinalBlock();
-        }
-
-        return ms.ToArray();
+        return ProtectedData.Protect(plainBytes, Entropy, DataProtectionScope.CurrentUser);
     }
 
     private static byte[] DecryptBytes(byte[] encryptedBytes)
     {
-        using var aes = Aes.Create();
-        aes.Key = Key;
-
-        var iv = new byte[aes.BlockSize / 8];
-        Array.Copy(encryptedBytes, 0, iv, 0, iv.Length);
-        aes.IV = iv;
-
-        using var ms = new MemoryStream(encryptedBytes, iv.Length, encryptedBytes.Length - iv.Length);
-        using var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
-        using var result = new MemoryStream();
-        cs.CopyTo(result);
-        return result.ToArray();
+        return ProtectedData.Unprotect(encryptedBytes, Entropy, DataProtectionScope.CurrentUser);
     }
 }

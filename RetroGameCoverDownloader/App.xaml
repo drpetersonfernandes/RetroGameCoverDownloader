@@ -83,6 +83,13 @@
             </Canvas>
         </Viewbox>
 
+        <Viewbox x:Key="FolderIcon" x:Shared="False" Width="16" Height="16">
+            <Canvas Width="24" Height="24">
+                <Path Data="M3,5 L9,5 L11,7 L21,7 L21,19 L3,19 Z"
+                      Stroke="{StaticResource MenuItemIconForeground}" StrokeThickness="1.5" Fill="Transparent"/>
+            </Canvas>
+        </Viewbox>
+
         <!-- ==================== Text Styles ==================== -->
 
         <!-- Title text: dialog/section headings -->
@@ -145,6 +152,31 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <!-- Instructional/step text: smaller informational text -->
+        <Style x:Key="InstructionTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- Masked/secret display text (e.g., saved token placeholder) -->
+        <Style x:Key="MaskedTextStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+
+        <!-- ==================== Panel Styles ==================== -->
+
+        <!-- Informational panel (subtle filled box with border) -->
+        <Style x:Key="InfoPanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
         <!-- ==================== Button Styles ==================== -->
