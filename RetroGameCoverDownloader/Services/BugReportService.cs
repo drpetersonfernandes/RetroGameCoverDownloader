@@ -45,7 +45,7 @@ public class BugReportService : IBugReportService
         }
     }
 
-    private readonly string _baseDirectory = AppContext.BaseDirectory;
+    private readonly string _baseDirectory = AppInfo.LocalAppDataFolderPath;
     private string ErrorLogFilePath => Path.Combine(_baseDirectory, "error.log");
     private string CriticalLogFilePath => Path.Combine(_baseDirectory, "critical_error.log");
 
@@ -150,6 +150,7 @@ public class BugReportService : IBugReportService
 
         try
         {
+            Directory.CreateDirectory(_baseDirectory);
             File.AppendAllText(ErrorLogFilePath, logContent, Encoding.UTF8);
         }
         catch (Exception writeEx)
@@ -188,6 +189,7 @@ public class BugReportService : IBugReportService
 
         try
         {
+            Directory.CreateDirectory(_baseDirectory);
             await File.AppendAllTextAsync(ErrorLogFilePath, logContent, Encoding.UTF8);
         }
         catch (Exception writeEx)
@@ -260,6 +262,7 @@ public class BugReportService : IBugReportService
             criticalContent.AppendLine(CultureInfo.InvariantCulture, $"Stack Trace:\n{ex.StackTrace}");
             criticalContent.AppendLine("--------------------------------------------------\n");
 
+            Directory.CreateDirectory(_baseDirectory);
             File.AppendAllText(CriticalLogFilePath, criticalContent.ToString(), Encoding.UTF8);
         }
         catch (Exception logEx)

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Serilog.Core;
 using Serilog.Events;
 
@@ -8,17 +7,36 @@ public class UiLogSink : ILogEventSink
 {
     private const int MaxBufferedMessages = 1000;
 
-    private static readonly ConcurrentQueue<string> Buffer = new();
-    private static volatile Action<string>? _uiHandler;
+    // A single gate guards both the buffer and the handler reference so that
+    // "attach handler + drain buffer" and "read handler / enqueue" are atomic
+    // with respect to each other. Without this, a message emitted on another
+    // thread in the instant between the null-check and enqueue could be stranded
+    // in the buffer until the next SetUiHandler call.
+    private static readonly object Gate = new();
+    private static readonly Queue<string> Buffer = new();
+    private static Action<string>? _uiHandler;
 
     public static void SetUiHandler(Action<string>? handler)
     {
-        _uiHandler = handler;
+        string[]? pending = null;
 
-        if (handler != null)
+        lock (Gate)
         {
-            while (Buffer.TryDequeue(out var msg))
-                handler(msg);
+            _uiHandler = handler;
+
+            if (handler != null && Buffer.Count > 0)
+            {
+                pending = Buffer.ToArray();
+                Buffer.Clear();
+            }
+        }
+
+        // Replay outside the lock: the handler marshals to the UI thread, which
+        // may itself log, so holding the gate here could deadlock.
+        if (pending != null)
+        {
+            foreach (var msg in pending)
+                handler!(msg);
         }
     }
 
@@ -26,21 +44,27 @@ public class UiLogSink : ILogEventSink
     {
         var formatted = FormatLogEvent(logEvent);
 
-        var handler = _uiHandler;
-        if (handler != null)
-        {
-            handler(formatted);
-        }
-        else
-        {
-            Buffer.Enqueue(formatted);
+        Action<string>? handler;
 
-            // Cap the buffer so log messages can't accumulate unbounded
-            // when no UI handler is ever attached (e.g. headless/test hosts).
-            while (Buffer.Count > MaxBufferedMessages && Buffer.TryDequeue(out _))
+        lock (Gate)
+        {
+            handler = _uiHandler;
+
+            if (handler == null)
             {
+                Buffer.Enqueue(formatted);
+
+                // Cap the buffer so log messages can't accumulate unbounded
+                // when no UI handler is ever attached (e.g. headless/test hosts).
+                while (Buffer.Count > MaxBufferedMessages)
+                    Buffer.Dequeue();
+
+                return;
             }
         }
+
+        // Invoke outside the lock to avoid holding it during UI dispatch.
+        handler(formatted);
     }
 
     private static string FormatLogEvent(LogEvent logEvent)

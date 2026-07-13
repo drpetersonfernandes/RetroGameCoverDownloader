@@ -115,6 +115,7 @@ public partial class App
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
 
+            Log.CloseAndFlush();
             Current.Shutdown();
             Environment.Exit(1);
         }
@@ -123,6 +124,7 @@ public partial class App
     protected override void OnExit(ExitEventArgs e)
     {
         base.OnExit(e);
+        Log.CloseAndFlush();
         Environment.Exit(0);
     }
 
@@ -166,6 +168,7 @@ public partial class App
             /* Ignore message box failure */
         }
 
+        Log.CloseAndFlush();
         Current.Shutdown();
         Environment.Exit(1);
     }
@@ -206,6 +209,7 @@ public partial class App
 
         if (e.IsTerminating)
         {
+            Log.CloseAndFlush();
             Current.Shutdown();
             Environment.Exit(1);
         }
