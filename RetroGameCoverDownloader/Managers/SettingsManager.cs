@@ -14,9 +14,6 @@ public static class SettingsManager
     private const string SettingsFileName = "settings.dat";
     private const string LegacySettingsFileName = "settings.xml";
 
-    private static readonly string AppFolderPath = Path.Combine(
-        AppContext.BaseDirectory, SettingsFileName);
-
     private static readonly string AppDataPath = Path.Combine(
         AppInfo.LocalAppDataFolderPath, SettingsFileName);
 
@@ -34,14 +31,10 @@ public static class SettingsManager
 
     public static AppSettings LoadSettings()
     {
-        var candidatePaths = new[] { AppFolderPath, AppDataPath };
-        var existing = candidatePaths.Where(File.Exists).ToList();
-
-        if (existing.Count > 0)
+        if (File.Exists(AppDataPath))
         {
-            var newest = existing.MaxBy(File.GetLastWriteTimeUtc)!;
-            _loadedFromPath = newest;
-            return LoadFromDat(newest);
+            _loadedFromPath = AppDataPath;
+            return LoadFromDat(AppDataPath);
         }
 
         var legacyPath = Path.Combine(AppContext.BaseDirectory, LegacySettingsFileName);

@@ -329,11 +329,11 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            InvokeOnDispatcher(() =>
+            InvokeOnDispatcherAsync(() =>
             {
                 try
                 {
-                    Log.Information("[OnUnauthorizedAccess] GitHub returned 401 Unauthorized. Prompting for token...");
+                    Log.Error("[OnUnauthorizedAccess] GitHub returned 401 Unauthorized. Prompting for token...");
                     MessageBox.Show(
                         "GitHub returned a 401 Unauthorized error.\n\n" +
                         "Your GitHub token may be missing, invalid, or expired.\n" +
@@ -986,6 +986,11 @@ public class MainViewModel : ViewModelBase, IDisposable
     protected virtual void InvokeOnDispatcher(Action action)
     {
         Application.Current?.Dispatcher.Invoke(action);
+    }
+
+    protected virtual void InvokeOnDispatcherAsync(Action action)
+    {
+        Application.Current?.Dispatcher.BeginInvoke(DispatcherPriority.Normal, action);
     }
 
     protected virtual void InvalidateCommands()

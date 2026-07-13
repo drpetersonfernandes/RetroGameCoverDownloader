@@ -482,6 +482,11 @@ public class MainViewModelTests
             action();
         }
 
+        protected override void InvokeOnDispatcherAsync(Action action)
+        {
+            action();
+        }
+
         protected override IGitHubService CreateGitHubService(string? token, bool useProxy, string? proxyHost, int proxyPort, string? proxyUsername, string? proxyPassword)
         {
             return _next;

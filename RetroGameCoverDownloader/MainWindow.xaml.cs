@@ -342,8 +342,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Log.Information("Error opening About window: {Reason}", ex.Message);
-            Log.Error(ex, "Error opening About window");
+            Log.Error(ex, "Error opening About window: {Reason}", ex.Message);
         }
     }
 
