@@ -10,7 +10,7 @@ namespace RetroGameCoverDownloader.Services;
 
 public static partial class UpdateCheckerService
 {
-    private const string RepoOwner = "drpetersonfernandes";
+    private const string RepoOwner = "purelogiccode";
     private const string RepoName = "RetroGameCoverDownloader";
     private const string LatestApiUrl = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
 

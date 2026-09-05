@@ -43,7 +43,7 @@ Tired of manually hunting for game cover art? **Retro Game Cover Downloader** sc
 - .NET 10.0 Runtime (installed automatically with the application)
 
 ### Download
-1. Grab the latest release from the [Releases Page](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/releases)
+1. Grab the latest release from the [Releases Page](https://github.com/purelogiccode/RetroGameCoverDownloader/releases)
 2. Extract the ZIP file to your desired location
 3. Run `RetroGameCoverDownloader.exe`
 
@@ -116,15 +116,15 @@ This project is licensed under the **GPL-3.0 license**.
 
 ## 🆘 Support
 
-- **Issues**: [Report Bugs](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/issues)
-- **Discussions**: [Ask Questions](https://github.com/drpetersonfernandes/RetroGameCoverDownloader/discussions)
+- **Issues**: [Report Bugs](https://github.com/purelogiccode/RetroGameCoverDownloader/issues)
+- **Discussions**: [Ask Questions](https://github.com/purelogiccode/RetroGameCoverDownloader/discussions)
 - **Email**: support@purelogiccode.com
 
 ## ⭐ Show Your Support
 
 If you find this project helpful, please consider giving it a **star** on GitHub! It helps others discover the project and motivates continued development.
 
-[![GitHub Stars](https://img.shields.io/github/stars/drpetersonfernandes/RetroGameCoverDownloader?style=social)](https://github.com/drpetersonfernandes/RetroGameCoverDownloader)
+[![GitHub Stars](https://img.shields.io/github/stars/purelogiccode/RetroGameCoverDownloader?style=social)](https://github.com/purelogiccode/RetroGameCoverDownloader)
 
 **⭐ Click the star button at the top of the repository if you like this project! ⭐**
 
