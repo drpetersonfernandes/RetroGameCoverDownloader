@@ -12,7 +12,7 @@ public class UiLogSink : ILogEventSink
     // with respect to each other. Without this, a message emitted on another
     // thread in the instant between the null-check and enqueue could be stranded
     // in the buffer until the next SetUiHandler call.
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static readonly Queue<string> Buffer = new();
     private static Action<string>? _uiHandler;
 
@@ -69,7 +69,7 @@ public class UiLogSink : ILogEventSink
 
     private static string FormatLogEvent(LogEvent logEvent)
     {
-        var ts = logEvent.Timestamp.ToString("HH:mm:ss");
+        var ts = logEvent.Timestamp.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
         var msg = logEvent.RenderMessage();
         return logEvent.Level switch
         {

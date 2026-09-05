@@ -110,8 +110,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         UiLogSink.SetUiHandler(OnUILogMessage);
 
-        // ReSharper disable once VirtualMemberCallInConstructor
-        _gitHubService = gitHubService ?? CreateGitHubService(
+        _gitHubService = gitHubService ?? new GitHubService(
             settings.GitHubToken,
             settings.UseProxy,
             settings.ProxyHost,
@@ -134,28 +133,8 @@ public class MainViewModel : ViewModelBase, IDisposable
         BrowseRomCommand = new RelayCommand(_ => SelectFolder(path => { RomFolderPath = path; }));
         BrowseCoverCommand = new RelayCommand(_ => SelectFolder(path => { CoverFolderPath = path; }));
 
-        PrepareCommand = new RelayCommand(async void (_) =>
-        {
-            try
-            {
-                await PrepareDownloadAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "[MainViewModel.PrepareCommand] Unhandled exception in PrepareCommand execution.");
-            }
-        }, _ => !IsBusy && SelectedSystem != null && !string.IsNullOrEmpty(RomFolderPath) && !string.IsNullOrEmpty(CoverFolderPath));
-        DownloadCommand = new RelayCommand(async void (_) =>
-        {
-            try
-            {
-                await DownloadCoversAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "[MainViewModel.DownloadCommand] Unhandled exception in DownloadCommand execution.");
-            }
-        }, _ => !IsBusy && ItemsToDownload.Count > 0);
+        PrepareCommand = new RelayCommand(o => o = ExecutePrepareCommandAsync(), _ => !IsBusy && SelectedSystem != null && !string.IsNullOrEmpty(RomFolderPath) && !string.IsNullOrEmpty(CoverFolderPath));
+        DownloadCommand = new RelayCommand(o => o = ExecuteDownloadCommandAsync(), _ => !IsBusy && ItemsToDownload.Count > 0);
         CancelCommand = new RelayCommand(
             _ => CancelOperation(),
             _ => IsBusy && _cts != null // Add null check to disable button sooner
@@ -172,35 +151,66 @@ public class MainViewModel : ViewModelBase, IDisposable
             UpdateAvailable = false;
         });
 
-        CheckForUpdatesCommand = new RelayCommand(async void (_) =>
-        {
-            try
-            {
-                Log.Information("Checking for updates...");
-                await UpdateCheckerService.CheckForUpdateAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "[MainViewModel.CheckForUpdatesCommand] Error checking for updates.");
-            }
-        });
+        CheckForUpdatesCommand = new RelayCommand(o => o = ExecuteCheckForUpdatesCommandAsync());
 
         UpdateCheckerService.UpdateAvailable += OnUpdateAvailable;
 
         if (!suppressStartup)
         {
             // Load Systems on Startup
-            try
-            {
-                _ = LoadSystemsAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "[MainViewModel.LoadSystemsAsync] Error loading systems from GitHub.");
-            }
+            _ = LoadSystemsAsyncSafe();
 
             // Check for updates
             _ = UpdateCheckerService.CheckForUpdateAsync();
+        }
+    }
+
+    private async Task ExecutePrepareCommandAsync()
+    {
+        try
+        {
+            await PrepareDownloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[MainViewModel.PrepareCommand] Unhandled exception in PrepareCommand execution.");
+        }
+    }
+
+    private async Task ExecuteDownloadCommandAsync()
+    {
+        try
+        {
+            await DownloadCoversAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[MainViewModel.DownloadCommand] Unhandled exception in DownloadCommand execution.");
+        }
+    }
+
+    private static async Task ExecuteCheckForUpdatesCommandAsync()
+    {
+        try
+        {
+            Log.Information("Checking for updates...");
+            await UpdateCheckerService.CheckForUpdateAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[MainViewModel.CheckForUpdatesCommand] Error checking for updates.");
+        }
+    }
+
+    private async Task LoadSystemsAsyncSafe()
+    {
+        try
+        {
+            await LoadSystemsAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[MainViewModel.LoadSystemsAsync] Error loading systems from GitHub.");
         }
     }
 
@@ -333,7 +343,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 try
                 {
-                    Log.Error("[OnUnauthorizedAccess] GitHub returned 401 Unauthorized. Prompting for token...");
+                    Log.Information("[OnUnauthorizedAccess] GitHub returned 401 Unauthorized. Prompting for token...");
                     MessageBox.Show(
                         "GitHub returned a 401 Unauthorized error.\n\n" +
                         "Your GitHub token may be missing, invalid, or expired.\n" +
@@ -530,7 +540,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                         if (systems.Count > 0)
                         {
                             Systems.Clear();
-                            foreach (var sys in systems.OrderBy(static s => s.SystemName)) Systems.Add(sys);
+                            foreach (var sys in systems.OrderBy(static s => s.SystemName, StringComparer.OrdinalIgnoreCase)) Systems.Add(sys);
                         }
                     }
                     catch (Exception ex)
@@ -993,7 +1003,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     protected virtual void InvokeOnDispatcherAsync(Action action)
     {
-        Application.Current?.Dispatcher.BeginInvoke(DispatcherPriority.Normal, action);
+        _ = Application.Current?.Dispatcher.BeginInvoke(DispatcherPriority.Normal, action);
     }
 
     protected virtual void InvalidateCommands()

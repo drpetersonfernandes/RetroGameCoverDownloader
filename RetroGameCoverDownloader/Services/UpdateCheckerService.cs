@@ -123,6 +123,6 @@ public static partial class UpdateCheckerService
         catch { return false; }
     }
 
-    [GeneratedRegex(@"\d+\.\d+\.\d+(?:\.\d+)?")]
+    [GeneratedRegex(@"\d+\.\d+\.\d+(?:\.\d+)?", RegexOptions.None, 1000)]
     private static partial Regex MyRegex();
 }

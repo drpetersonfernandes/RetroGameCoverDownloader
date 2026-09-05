@@ -10,8 +10,8 @@ public class LogContextTests
     {
         var result = LogContext.ForMethod();
 
-        Assert.StartsWith("[", result);
-        Assert.EndsWith("] ", result);
+        Assert.StartsWith("[", result, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("] ", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class LogContextTests
     {
         var result = LogContext.ForMethod();
 
-        Assert.Contains("LogContextTests", result);
-        Assert.Contains("ForMethodContainsClassNameAndMethodName", result);
+        Assert.Contains("LogContextTests", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ForMethodContainsClassNameAndMethodName", result, StringComparison.OrdinalIgnoreCase);
     }
 }

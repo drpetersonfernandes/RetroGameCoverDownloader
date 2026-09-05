@@ -7,7 +7,7 @@ public class RateLimiter
     private int _maxRequests;
     private readonly TimeSpan _timeWindow;
     private readonly Queue<DateTime> _requestTimestamps = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // 1. Add an event to notify listeners (ViewModel)
     public event Action<TimeSpan>? OnRateLimitHit;

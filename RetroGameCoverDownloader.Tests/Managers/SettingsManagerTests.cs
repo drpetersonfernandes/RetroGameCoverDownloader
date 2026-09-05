@@ -83,8 +83,8 @@ public class SettingsManagerTests
             var rawBytes = File.ReadAllBytes(tempPath);
             var rawText = System.Text.Encoding.UTF8.GetString(rawBytes);
 
-            Assert.DoesNotContain("ghp_secretToken123", rawText);
-            Assert.DoesNotContain("GitHubToken", rawText);
+            Assert.DoesNotContain("ghp_secretToken123", rawText, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("GitHubToken", rawText, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

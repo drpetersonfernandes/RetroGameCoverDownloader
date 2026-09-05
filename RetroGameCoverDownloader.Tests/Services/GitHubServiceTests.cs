@@ -110,7 +110,7 @@ public class GitHubServiceTests
         var responseMaster = new TrackingHttpResponseMessage(HttpStatusCode.NotFound);
         var handler = new TestHttpMessageHandler(request =>
         {
-            if (request.RequestUri?.ToString().Contains("/master?recursive=1") == true)
+            if (request.RequestUri?.ToString().Contains("/master?recursive=1", StringComparison.OrdinalIgnoreCase) == true)
                 return responseMaster;
 
             return responseMain;
@@ -135,7 +135,7 @@ public class GitHubServiceTests
         var response500 = new TrackingHttpResponseMessage(HttpStatusCode.InternalServerError);
         var handler = new TestHttpMessageHandler(request =>
         {
-            if (request.RequestUri?.ToString().Contains("?recursive=1") == true)
+            if (request.RequestUri?.ToString().Contains("?recursive=1", StringComparison.OrdinalIgnoreCase) == true)
                 return response500;
 
             // Fallback calls: return minimal valid JSON trees so the method completes gracefully
@@ -176,7 +176,7 @@ public class GitHubServiceTests
 
             var handler = new TestHttpMessageHandler(static request =>
             {
-                if (request.RequestUri?.ToString().Contains(".gitmodules") == true)
+                if (request.RequestUri?.ToString().Contains(".gitmodules", StringComparison.OrdinalIgnoreCase) == true)
                     return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(gitmodules) };
 
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(treeJson) };

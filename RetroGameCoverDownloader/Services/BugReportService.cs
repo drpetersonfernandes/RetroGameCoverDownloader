@@ -25,7 +25,7 @@ public class BugReportService : IBugReportService
         };
     }
 
-    private readonly object _httpClientLock = new();
+    private readonly Lock _httpClientLock = new();
     private HttpClient? _httpClientInstance;
 
     private HttpClient GetHttpClient()
@@ -109,6 +109,18 @@ public class BugReportService : IBugReportService
         return sb.ToString();
     }
 
+    private static string FormatContextOnlyMessage(string contextMessage)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(GetEnvironmentDetails());
+        sb.AppendLine();
+        sb.AppendLine("=== Error Details ===");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Error message: {contextMessage}");
+        sb.AppendLine();
+        sb.AppendLine("No exception object was provided; recorded locally only, no bug report sent to the API.");
+        return sb.ToString();
+    }
+
     void IBugReportService.LogErrorSync(Exception? ex, string? contextMessage)
     {
         CoreLogErrorSync(ex, contextMessage);
@@ -131,20 +143,13 @@ public class BugReportService : IBugReportService
 
     private void CoreLogErrorSync(Exception? ex, string? contextMessage)
     {
+        contextMessage ??= "No additional context provided.";
+
         if (ex == null)
         {
-            ex = new InvalidOperationException("BugReportService.LogErrorSync was called with a null exception object.");
-            try
-            {
-                throw ex;
-            }
-            catch
-            {
-                /* ex now has a stack trace */
-            }
+            WriteContextOnlyErrorLogSync(contextMessage);
+            return;
         }
-
-        contextMessage ??= "No additional context provided.";
 
         var logContent = FormatErrorMessage(ex, contextMessage);
 
@@ -168,22 +173,28 @@ public class BugReportService : IBugReportService
         }
     }
 
+    private void WriteContextOnlyErrorLogSync(string contextMessage)
+    {
+        try
+        {
+            Directory.CreateDirectory(_baseDirectory);
+            File.AppendAllText(ErrorLogFilePath, FormatContextOnlyMessage(contextMessage), Encoding.UTF8);
+        }
+        catch (Exception writeEx)
+        {
+            WriteToCriticalLog(writeEx, $"Failed to write context-only error to '{ErrorLogFilePath}'.");
+        }
+    }
+
     private async Task CoreLogErrorAsync(Exception? ex, string? contextMessage)
     {
+        contextMessage ??= "No additional context provided.";
+
         if (ex == null)
         {
-            ex = new InvalidOperationException("BugReportService.LogErrorAsync was called with a null exception object.");
-            try
-            {
-                throw ex;
-            }
-            catch
-            {
-                /* ex now has a stack trace */
-            }
+            await WriteContextOnlyErrorLogAsync(contextMessage);
+            return;
         }
-
-        contextMessage ??= "No additional context provided.";
 
         var logContent = FormatErrorMessage(ex, contextMessage);
 
@@ -198,6 +209,19 @@ public class BugReportService : IBugReportService
         }
 
         await SendLogToApiAsync(ex, contextMessage);
+    }
+
+    private async Task WriteContextOnlyErrorLogAsync(string contextMessage)
+    {
+        try
+        {
+            Directory.CreateDirectory(_baseDirectory);
+            await File.AppendAllTextAsync(ErrorLogFilePath, FormatContextOnlyMessage(contextMessage), Encoding.UTF8);
+        }
+        catch (Exception writeEx)
+        {
+            WriteToCriticalLog(writeEx, $"Failed to write context-only error to '{ErrorLogFilePath}'.");
+        }
     }
 
     private async Task<bool> SendLogToApiAsync(Exception ex, string contextMessage)

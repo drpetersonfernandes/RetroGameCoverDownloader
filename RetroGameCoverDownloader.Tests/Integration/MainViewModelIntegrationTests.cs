@@ -74,8 +74,8 @@ public class MainViewModelIntegrationTests
 
     private class IntegrationTestableMainViewModel : MainViewModel
     {
-        public Dictionary<string, string[]> FilesByPath { get; } = new();
-        public Dictionary<string, byte[]> WrittenFiles { get; } = new();
+        public Dictionary<string, string[]> FilesByPath { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, byte[]> WrittenFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public IntegrationTestableMainViewModel(AppSettings settings, IGitHubService service)
             : base(settings, service, true)

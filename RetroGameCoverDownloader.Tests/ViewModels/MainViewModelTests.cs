@@ -68,8 +68,8 @@ public class MainViewModelTests
         {
         }
 
-        public Dictionary<string, string[]> FilesByPath { get; } = new();
-        public Dictionary<string, byte[]> WrittenFiles { get; } = new();
+        public Dictionary<string, string[]> FilesByPath { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, byte[]> WrittenFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
         public long AvailableFreeSpace { get; set; } = long.MaxValue;
         public Func<string, bool>? DirectoryExistsOverride { get; set; }
 
@@ -284,7 +284,7 @@ public class MainViewModelTests
         Assert.Single(vm.ItemsToDownload);
         Assert.Equal("Super Mario Bros", vm.ItemsToDownload[0].GameName);
         Assert.Equal("Super Mario Bros.png", vm.ItemsToDownload[0].TargetFilename);
-        Assert.Contains("raw.githubusercontent.com", vm.ItemsToDownload[0].DownloadUrl);
+        Assert.Contains("raw.githubusercontent.com", vm.ItemsToDownload[0].DownloadUrl, StringComparison.OrdinalIgnoreCase);
         Assert.False(vm.IsBusy);
     }
 

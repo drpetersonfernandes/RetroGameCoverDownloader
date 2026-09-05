@@ -25,7 +25,7 @@ public class ApplicationStatsService
         };
     }
 
-    private readonly object _httpClientLock = new();
+    private readonly Lock _httpClientLock = new();
     private HttpClient? _httpClientInstance;
 
     private HttpClient GetHttpClient()
@@ -65,9 +65,13 @@ public class ApplicationStatsService
 
             using var response = await GetHttpClient().SendAsync(request);
         }
+        catch (OperationCanceledException ex)
+        {
+            Log.Information(ex, "Launch telemetry skipped: the request timed out or was canceled (non-critical).");
+        }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to track launch telemetry.");
+            Log.Information(ex, "Launch telemetry skipped: the stats endpoint could not be reached (non-critical).");
         }
     }
 }

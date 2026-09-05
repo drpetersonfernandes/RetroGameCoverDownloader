@@ -23,7 +23,7 @@ public partial class ExtensionsDialog
             FileExtensions = settings.FileExtensions.ToList();
 
             ExtensionsListBox.Items.Clear();
-            foreach (var ext in FileExtensions.OrderBy(static e => e.ToLowerInvariant()))
+            foreach (var ext in FileExtensions.OrderBy(static e => e.ToLowerInvariant(), StringComparer.OrdinalIgnoreCase))
             {
                 ExtensionsListBox.Items.Add(ext);
             }
@@ -83,7 +83,7 @@ public partial class ExtensionsDialog
     private void ResetButton_Click(object sender, RoutedEventArgs e)
     {
         ExtensionsListBox.Items.Clear();
-        foreach (var ext in Models.AppSettings.DefaultExtensions.OrderBy(static x => x.ToLowerInvariant()))
+        foreach (var ext in Models.AppSettings.DefaultExtensions.OrderBy(static x => x.ToLowerInvariant(), StringComparer.OrdinalIgnoreCase))
         {
             ExtensionsListBox.Items.Add(ext);
         }

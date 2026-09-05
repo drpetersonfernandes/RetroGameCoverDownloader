@@ -198,10 +198,25 @@ public class GitHubService : IGitHubService
 
         if (lastException != null)
         {
-            Log.Error(lastException, "{Context}Failed to fetch available systems from GitHub.", context);
+            if (IsRateLimitError(lastException))
+            {
+                Log.Information(lastException, "{Context}GitHub rate limit exceeded on all branches and no cached system list is available. Please try again later, or set a GitHub token to raise the rate limit.", context);
+            }
+            else
+            {
+                Log.Error(lastException, "{Context}Failed to fetch available systems from GitHub.", context);
+            }
         }
 
         return new List<SystemConfig>();
+    }
+
+    private static bool IsRateLimitError(Exception ex)
+    {
+        return ex is HttpRequestException
+        {
+            StatusCode: HttpStatusCode.Forbidden or (HttpStatusCode)429
+        };
     }
 
     private async Task<List<SystemConfig>> TryFetchSystemsForBranchAsync(string branch, CancellationToken cancellationToken)
@@ -221,7 +236,7 @@ public class GitHubService : IGitHubService
 
         if (tree?.Tree != null)
         {
-            foreach (var item in tree.Tree.Where(static i => i.Type == "commit"))
+            foreach (var item in tree.Tree.Where(static i => string.Equals(i.Type, "commit", StringComparison.OrdinalIgnoreCase)))
             {
                 if (repoNameMap.TryGetValue(item.Path, out var systemRepoName))
                 {
@@ -285,7 +300,7 @@ public class GitHubService : IGitHubService
                 ? $"{context}Both raw.githubusercontent.com and GitHub Contents API returned 403 (rate limit exceeded)."
                 : $"{context}GitHub Contents API returned 403 (rate limit exceeded) after raw.githubusercontent.com fallback.";
             Log.Information("{Reason}", message);
-            throw new InvalidOperationException(message, ex);
+            throw new HttpRequestException(message, ex, HttpStatusCode.Forbidden);
         }
     }
 
@@ -327,11 +342,19 @@ public class GitHubService : IGitHubService
                 if (tree?.Tree != null)
                 {
                     var files = tree.Tree
-                        .Where(i => i.Type == "blob" && i.Path.StartsWith(system.FolderPath + "/", StringComparison.OrdinalIgnoreCase))
+                        .Where(i => string.Equals(i.Type, "blob", StringComparison.OrdinalIgnoreCase) && i.Path.StartsWith(system.FolderPath + "/", StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
                     if (files.Count > 0) return (branch, files);
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException ex)
+            {
+                Log.Information(ex, "{Context}Request timed out on branch '{Branch}'. Trying next branch...", context, branch);
             }
             catch (Exception ex)
             {
@@ -358,8 +381,7 @@ public class GitHubService : IGitHubService
             var rootTree = JsonSerializer.Deserialize<GitHubTree>(rootJson, _jsonOptions);
 
             // 2. Find the "Named_Boxarts" folder entry
-            var folderEntry = rootTree?.Tree.FirstOrDefault(i =>
-                i.Type == "tree" && string.Equals(i.Path, system.FolderPath, StringComparison.OrdinalIgnoreCase));
+            var folderEntry = rootTree?.Tree.FirstOrDefault(i => string.Equals(i.Type, "tree", StringComparison.OrdinalIgnoreCase) && string.Equals(i.Path, system.FolderPath, StringComparison.OrdinalIgnoreCase));
 
             if (folderEntry != null && !string.IsNullOrEmpty(folderEntry.Sha))
             {
@@ -374,7 +396,7 @@ public class GitHubService : IGitHubService
                 {
                     // Map paths to include the folder prefix so the rest of the app logic remains compatible
                     var files = folderTree.Tree
-                        .Where(static i => i.Type == "blob")
+                        .Where(static i => string.Equals(i.Type, "blob", StringComparison.OrdinalIgnoreCase))
                         .Select(i => new GitHubTreeItem { Path = $"{system.FolderPath}/{i.Path}", Type = i.Type })
                         .ToList();
 
@@ -382,6 +404,10 @@ public class GitHubService : IGitHubService
                     return (branch, files);
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -523,7 +549,7 @@ public class GitHubService : IGitHubService
     {
         const string context = "[ParseGitmodules] ";
 
-        var map = new Dictionary<string, string>();
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var lines = content.Split(Separator, StringSplitOptions.RemoveEmptyEntries);
         string? currentPath = null;
 

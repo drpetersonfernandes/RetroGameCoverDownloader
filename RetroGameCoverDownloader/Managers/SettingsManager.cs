@@ -161,7 +161,7 @@ public static class SettingsManager
             settings.ProxyHost = hostNode?.InnerText;
 
             var portNode = doc.SelectSingleNode("/AppSettings/ProxyPort");
-            if (portNode != null && int.TryParse(portNode.InnerText, out var port))
+            if (portNode != null && int.TryParse(portNode.InnerText, System.Globalization.CultureInfo.InvariantCulture, out var port))
             {
                 settings.ProxyPort = port;
             }
